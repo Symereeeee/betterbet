@@ -1,7 +1,9 @@
 // app/betterbet/dice/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useWallet, formatCurrency } from "@/lib/useWallet";
+import Link from "next/link";
 
 type Outcome = "WIN" | "LOSE" | null;
 
@@ -10,59 +12,32 @@ type HistoryItem = {
   amount: number;
   roll: number;
   outcome: Outcome;
+  guess: "HIGH" | "LOW";
 };
 
 export default function DicePage() {
-  const [balance, setBalance] = useState<number>(1000);
-  const [amount, setAmount] = useState<number>(50);
-  const [sliderValue, setSliderValue] = useState<number>(50); // 0–100
+  const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();
+  const [amount, setAmount] = useState<number>(100);
   const [guess, setGuess] = useState<"HIGH" | "LOW">("HIGH");
   const [roll, setRoll] = useState<number | null>(null);
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [betCount, setBetCount] = useState(0);
-  const [totalProfit, setTotalProfit] = useState(0);
   const [hitAnim, setHitAnim] = useState(false);
 
-  // derive win chance & multiplier from slider
-  const { winChance, multiplier, rollOverLabel } = useMemo(() => {
-    const threshold = sliderValue; // 0–100
-    const chance =
-      guess === "HIGH" ? 100 - threshold : threshold || 1;
-    const houseEdge = 0.99; // 1% edge
-    const mult = houseEdge * (100 / chance);
-    const rollOver =
-      guess === "HIGH"
-        ? `${threshold.toFixed(1)}+`
-        : `${threshold.toFixed(1)}−`;
+  const payoutMultiplier = 2.0;
+  const winChance = 50.0;
 
-    return {
-      winChance: chance,
-      multiplier: mult,
-      rollOverLabel: rollOver,
-    };
-  }, [sliderValue, guess]);
-
-  const avgProfit = betCount === 0 ? 0 : totalProfit / betCount;
-
-  // animate hit
+  // Animate roll result
   useEffect(() => {
     if (roll === null) return;
     setHitAnim(true);
-    const id = setTimeout(() => setHitAnim(false), 350);
+    const id = setTimeout(() => setHitAnim(false), 400);
     return () => clearTimeout(id);
   }, [roll]);
 
-  // slider controls guess when crossing 50
-  const syncGuessFromSlider = (value: number) => {
-    const newGuess: "HIGH" | "LOW" = value >= 50 ? "HIGH" : "LOW";
-    setSliderValue(value);
-    setGuess(newGuess);
-  };
-
-  const placeBet = async () => {
+  const placeBet = useCallback(async () => {
     setError(null);
     setOutcome(null);
 
@@ -76,338 +51,321 @@ export default function DicePage() {
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const res = await fetch("/api/betterbet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "bet",
+    // Simulate roll delay
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Roll dice (1-6)
+    const diceRoll = Math.floor(Math.random() * 6) + 1;
+    const isHigh = diceRoll >= 4;
+    const won = (guess === "HIGH" && isHigh) || (guess === "LOW" && !isHigh);
+
+    const winAmount = won ? amount * payoutMultiplier : 0;
+
+    // Update wallet
+    walletPlaceBet(amount, won, winAmount);
+
+    // Update local state
+    setRoll(diceRoll);
+    setOutcome(won ? "WIN" : "LOSE");
+
+    // Add to history
+    const newOutcome: Outcome = won ? "WIN" : "LOSE";
+    setHistory((prev) =>
+      [
+        {
+          id: Date.now(),
           amount,
+          roll: diceRoll,
+          outcome: newOutcome,
           guess,
-        }),
-      });
+        },
+        ...prev,
+      ].slice(0, 15)
+    );
 
-      const data = await res.json();
+    setLoading(false);
+  }, [amount, balance, guess, walletPlaceBet]);
 
-      if (!res.ok || data.error) {
-        setError(data.error || `Server error (${res.status})`);
-        return;
-      }
+  const totalProfit = history.reduce((sum, h) => {
+    return sum + (h.outcome === "WIN" ? h.amount : -h.amount);
+  }, 0);
 
-      setRoll(data.roll);
-      setOutcome(data.outcome);
-      setBalance(data.newBalance);
+  const winCount = history.filter((h) => h.outcome === "WIN").length;
+  const winRate = history.length > 0 ? (winCount / history.length) * 100 : 0;
 
-      const profitChange = data.outcome === "WIN" ? amount : -amount;
-      setTotalProfit((p) => p + profitChange);
-      setBetCount((c) => c + 1);
-      setHistory((prev) => {
-        const next: HistoryItem[] = [
-          {
-            id: Date.now(),
-            amount,
-            roll: data.roll,
-            outcome: data.outcome,
-          },
-          ...prev,
-        ];
-        return next.slice(0, 10);
-      });
-    } catch (err) {
-      console.error(err);
-      setError("Server error while placing bet.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const rollBoxClass =
-    "mt-2 flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 text-2xl font-bold transition-transform duration-200 " +
-    (loading ? "animate-pulse " : "") +
-    (hitAnim
-      ? "scale-125 ring-2 ring-pink-500/70 shadow-[0_0_20px_rgba(236,72,153,0.7)] "
-      : "");
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-pulse text-[#b0b0c0]">Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-transparent text-zinc-100">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 lg:flex-row">
-        {/* LEFT PANEL */}
-        <div className="w-full rounded-3xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-xl lg:w-[340px]">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold tracking-tight">
-              BetterBet • Dice
-            </h1>
-            <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
-              Demo
-            </span>
-          </div>
+    <div className="p-4 lg:p-6">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-[#666680] mb-6">
+        <Link href="/betterbet" className="hover:text-white transition-colors">
+          Casino
+        </Link>
+        <span>/</span>
+        <span className="text-white">Dice</span>
+      </div>
 
-          <div className="mt-6 flex rounded-2xl bg-zinc-900 p-1 text-sm font-medium">
-            <button className="flex-1 rounded-2xl bg-zinc-950 py-2 text-center text-zinc-100">
-              Manual
-            </button>
-            <button className="flex-1 rounded-2xl py-2 text-center text-zinc-500">
-              Auto
-            </button>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* LEFT: Betting Panel */}
+        <div className="lg:col-span-1 space-y-4">
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+            {/* Mode tabs */}
+            <div className="flex bg-[#0a0a0f] rounded-lg p-1 mb-6">
+              <button className="flex-1 py-2 px-4 rounded-md bg-[#2a2a3e] text-white text-sm font-medium">
+                Manual
+              </button>
+              <button className="flex-1 py-2 px-4 rounded-md text-[#b0b0c0] text-sm font-medium hover:text-white transition-colors">
+                Auto
+              </button>
+            </div>
 
-          {/* Payout */}
-          <div className="mt-6 space-y-2 text-sm">
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Payout</span>
-            </div>
-            <div className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs text-zinc-400">₱</span>
-                <span className="text-lg font-semibold">
-                  {(amount * multiplier).toFixed(2)}
-                </span>
-              </div>
-              <span className="text-sm font-semibold text-emerald-400">
-                {multiplier.toFixed(2)}x
-              </span>
-            </div>
-          </div>
-
-          {/* Bet Amount */}
-          <div className="mt-6 space-y-2 text-sm">
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Bet Amount</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-3">
-              <div className="flex flex-1 items-center gap-2">
-                <span className="text-xs text-zinc-500">₱</span>
+            {/* Bet Amount */}
+            <div className="space-y-2 mb-4">
+              <label className="text-xs text-[#b0b0c0] font-medium">Bet Amount</label>
+              <div className="flex items-center bg-[#0a0a0f] rounded-lg border border-[#2a2a3e] overflow-hidden">
+                <span className="px-3 text-[#666680]">$</span>
                 <input
                   type="number"
-                  min={1}
-                  className="w-full bg-transparent text-sm outline-none"
+                  min={0.1}
+                  step={0.1}
                   value={amount}
-                  onChange={(e) => {
-                    const v = Number(e.target.value) || 0;
-                    setAmount(v);
-                    if (v > 0 && v <= balance) setError(null);
-                  }}
+                  onChange={(e) => setAmount(Number(e.target.value) || 0)}
+                  className="flex-1 bg-transparent py-3 text-white outline-none"
                 />
+                <div className="flex border-l border-[#2a2a3e]">
+                  <button
+                    onClick={() => setAmount((a) => Math.max(0.1, a / 2))}
+                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm"
+                  >
+                    ½
+                  </button>
+                  <button
+                    onClick={() => setAmount((a) => Math.min(balance, a * 2))}
+                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm border-l border-[#2a2a3e]"
+                  >
+                    2×
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-1 text-xs">
+              <div className="flex gap-2">
+                {[10, 50, 100, 500].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setAmount(preset)}
+                    className="flex-1 py-1.5 bg-[#0a0a0f] hover:bg-[#2a2a3e] text-[#b0b0c0] hover:text-white text-xs rounded-md transition-colors"
+                  >
+                    ${preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payout Display */}
+            <div className="flex justify-between items-center py-3 px-4 bg-[#0a0a0f] rounded-lg mb-4">
+              <span className="text-sm text-[#b0b0c0]">Profit on Win</span>
+              <span className="text-lg font-bold text-[#39ff14]">
+                +{formatCurrency(amount * (payoutMultiplier - 1))}
+              </span>
+            </div>
+
+            {/* Guess Selection */}
+            <div className="space-y-2 mb-4">
+              <label className="text-xs text-[#b0b0c0] font-medium">Prediction</label>
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  type="button"
-                  onClick={() =>
-                    setAmount((a) => Math.max(1, Math.floor(a / 2)))
-                  }
-                  className="rounded-xl bg-zinc-900 px-2 py-1 text-zinc-300 hover:bg-zinc-800"
+                  onClick={() => setGuess("LOW")}
+                  className={`py-3 rounded-lg font-medium transition-all ${
+                    guess === "LOW"
+                      ? "bg-[#39ff14] text-black"
+                      : "bg-[#0a0a0f] text-[#b0b0c0] hover:bg-[#2a2a3e] hover:text-white border border-[#2a2a3e]"
+                  }`}
                 >
-                  ½
+                  Low (1-3)
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setAmount((a) => Math.max(1, a * 2))}
-                  className="rounded-xl bg-zinc-900 px-2 py-1 text-zinc-300 hover:bg-zinc-800"
+                  onClick={() => setGuess("HIGH")}
+                  className={`py-3 rounded-lg font-medium transition-all ${
+                    guess === "HIGH"
+                      ? "bg-[#39ff14] text-black"
+                      : "bg-[#0a0a0f] text-[#b0b0c0] hover:bg-[#2a2a3e] hover:text-white border border-[#2a2a3e]"
+                  }`}
                 >
-                  2×
+                  High (4-6)
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAmount(balance)}
-                  className="rounded-xl bg-zinc-900 px-2 py-1 text-zinc-300 hover:bg-zinc-800"
-                >
-                  Max
-                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 bg-[#ff4444]/10 border border-[#ff4444]/30 rounded-lg mb-4">
+                <p className="text-sm text-[#ff4444]">{error}</p>
+              </div>
+            )}
+
+            {/* Place Bet Button */}
+            <button
+              onClick={placeBet}
+              disabled={loading || amount <= 0 || amount > balance}
+              className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] disabled:bg-[#2a2a3e] disabled:text-[#666680] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Rolling...
+                </span>
+              ) : (
+                "Roll Dice"
+              )}
+            </button>
+
+            {/* Balance Display */}
+            <div className="mt-4 p-3 bg-[#0a0a0f] rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span className="text-[#b0b0c0]">Balance</span>
+                <span className="text-white font-bold">{formatCurrency(balance)}</span>
               </div>
             </div>
           </div>
 
-          {error && (
-            <p className="mt-3 text-xs text-red-400">{error}</p>
-          )}
-
-          <button
-            type="button"
-            onClick={placeBet}
-            disabled={loading}
-            className="mt-6 w-full rounded-full bg-pink-500 py-3 text-center text-sm font-semibold text-black shadow-lg shadow-pink-500/30 transition hover:bg-pink-400 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Rolling..." : "Place bet"}
-          </button>
-
-          <div className="mt-4 flex items-center gap-2 rounded-2xl bg-zinc-900 px-3 py-2 text-[11px] text-zinc-500">
-            <span className="text-emerald-400">🎮</span>
-            <span>
-              Betting ₱0.00 will enter demo mode. This is a virtual credits
-              game only.
-            </span>
-          </div>
-
-          {/* Balance box */}
-          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-xs text-zinc-400">
-            <div className="flex items-center justify-between">
-              <span>Balance</span>
-              <span className="text-sm font-semibold text-zinc-100">
-                ₱{balance.toFixed(2)}
-              </span>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[11px]">
-              <span>Total profit</span>
-              <span
-                className={
-                  totalProfit >= 0
-                    ? "text-emerald-400"
-                    : "text-pink-400"
-                }
-              >
-                {totalProfit >= 0 ? "+" : ""}
-                {totalProfit.toFixed(2)}
-              </span>
+          {/* Stats Card */}
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+            <h3 className="text-sm font-medium text-white mb-3">Session Stats</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-[#b0b0c0]">Bets</span>
+                <span className="text-white">{history.length}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[#b0b0c0]">Wins</span>
+                <span className="text-[#39ff14]">{winCount}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[#b0b0c0]">Win Rate</span>
+                <span className="text-white">{winRate.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[#b0b0c0]">Profit</span>
+                <span className={totalProfit >= 0 ? "text-[#39ff14]" : "text-[#ff4444]"}>
+                  {totalProfit >= 0 ? "+" : ""}{formatCurrency(totalProfit)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT PANEL */}
-        <div className="flex-1 space-y-6">
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-xl">
-            {/* Top row */}
-            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  Last roll
-                </p>
-                <div className={rollBoxClass}>{roll ?? "—"}</div>
-                <p className="mt-2 text-xs text-zinc-500">
-                  Mode:{" "}
-                  {guess === "HIGH"
-                    ? "High wins above threshold"
-                    : "Low wins below threshold"}
-                </p>
+        {/* RIGHT: Game Display */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Main Game Area */}
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-6">
+            {/* Dice Display */}
+            <div className="flex flex-col items-center justify-center py-12">
+              <div
+                className={`relative w-32 h-32 rounded-2xl bg-[#0a0a0f] border-2 flex items-center justify-center transition-all duration-300 ${
+                  hitAnim
+                    ? outcome === "WIN"
+                      ? "border-[#39ff14] shadow-[0_0_30px_rgba(0,231,1,0.5)] scale-110"
+                      : "border-[#ff4444] shadow-[0_0_30px_rgba(255,68,68,0.5)] scale-110"
+                    : "border-[#2a2a3e]"
+                } ${loading ? "animate-dice-roll" : ""}`}
+              >
+                <span className={`text-6xl font-bold ${roll !== null ? "text-white" : "text-[#666680]"}`}>
+                  {roll ?? "?"}
+                </span>
               </div>
 
-              <div className="text-right text-sm text-zinc-400">
-                <p>
-                  Bets:{" "}
-                  <span className="font-semibold text-zinc-100">
-                    {betCount}
-                  </span>
-                </p>
-                <p className="mt-1">
-                  Avg. profit per bet:{" "}
-                  <span
-                    className={
-                      avgProfit >= 0
-                        ? "text-emerald-400"
-                        : "text-pink-400"
-                    }
-                  >
-                    {avgProfit >= 0 ? "+" : ""}
-                    {avgProfit.toFixed(2)}
-                  </span>
-                </p>
-              </div>
+              {/* Result Message */}
+              {outcome && (
+                <div className={`mt-6 text-center ${hitAnim ? "animate-pulse" : ""}`}>
+                  <p className={`text-2xl font-bold ${outcome === "WIN" ? "text-[#39ff14]" : "text-[#ff4444]"}`}>
+                    {outcome === "WIN" ? "You Won!" : "You Lost"}
+                  </p>
+                  <p className="text-[#b0b0c0] mt-1">
+                    Rolled {roll} - {roll && roll >= 4 ? "High" : "Low"}
+                  </p>
+                </div>
+              )}
+
+              {!outcome && !loading && (
+                <p className="mt-6 text-[#666680]">Place a bet to roll the dice</p>
+              )}
             </div>
 
-            {/* Risk slider */}
-            <div className="mt-8 space-y-3">
-              <div className="text-xs font-medium uppercase tracking-[0.25em] text-zinc-500">
-                RISK SLIDER
+            {/* Game Stats */}
+            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#2a2a3e]">
+              <div className="text-center">
+                <p className="text-xs text-[#666680] mb-1">Multiplier</p>
+                <p className="text-xl font-bold text-white">{payoutMultiplier}x</p>
               </div>
-
-              <div className="relative mt-1 h-10 rounded-full bg-zinc-900 px-6 py-2">
-                <div className="absolute inset-[8px] flex overflow-hidden rounded-full bg-zinc-900">
-                  <div
-                    className="h-full bg-pink-500/80"
-                    style={{ width: `${sliderValue}%` }}
-                  />
-                  <div
-                    className="h-full bg-emerald-500/80"
-                    style={{ width: `${100 - sliderValue}%` }}
-                  />
-                </div>
-
-                <div className="absolute inset-0 flex items-center px-6">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={sliderValue}
-                    onChange={(e) =>
-                      syncGuessFromSlider(Number(e.target.value))
-                    }
-                    className="w-full cursor-pointer appearance-none bg-transparent"
-                  />
-                </div>
+              <div className="text-center">
+                <p className="text-xs text-[#666680] mb-1">Win Chance</p>
+                <p className="text-xl font-bold text-white">{winChance}%</p>
               </div>
-
-              <div className="mt-2 flex justify-between text-xs text-zinc-500">
-                <span>0</span>
-                <span>25</span>
-                <span>50</span>
-                <span>75</span>
-                <span>100</span>
-              </div>
-            </div>
-
-            {/* Stat cards */}
-            <div className="mt-8 grid gap-4 text-sm md:grid-cols-3">
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3">
-                <p className="text-xs text-zinc-500">Multiplier</p>
-                <p className="mt-1 text-lg font-semibold">
-                  {multiplier.toFixed(4)}x
-                </p>
-              </div>
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3">
-                <p className="text-xs text-zinc-500">Win Chance</p>
-                <p className="mt-1 text-lg font-semibold">
-                  {winChance.toFixed(2)}%
-                </p>
-              </div>
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3">
-                <p className="text-xs text-zinc-500">Roll Over</p>
-                <p className="mt-1 text-lg font-semibold">
-                  {rollOverLabel}
+              <div className="text-center">
+                <p className="text-xs text-[#666680] mb-1">Target</p>
+                <p className="text-xl font-bold text-white">
+                  {guess === "HIGH" ? "4-6" : "1-3"}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* History */}
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-950/90 p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-100">
-                Recent rolls
-              </h2>
-              <span className="text-xs text-zinc-500">
-                Last {history.length || 0} bets
-              </span>
+          {/* Roll History */}
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-white">Roll History</h3>
+              <span className="text-xs text-[#666680]">Last {history.length} rolls</span>
             </div>
 
             {history.length === 0 ? (
-              <p className="mt-4 text-xs text-zinc-500">
-                No bets yet. Place a bet to start your streak.
+              <p className="text-sm text-[#666680] text-center py-8">
+                No rolls yet. Place a bet to start playing!
               </p>
             ) : (
-              <div className="mt-4 space-y-2 text-xs">
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {history.map((h) => (
                   <div
                     key={h.id}
-                    className="flex items-center justify-between rounded-xl border border-zinc-900 bg-zinc-950 px-3 py-2"
+                    className="flex items-center justify-between p-3 bg-[#0a0a0f] rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="rounded-lg bg-zinc-900 px-2 py-1 text-[11px] text-zinc-400">
-                        Roll {h.roll}
-                      </span>
-                      <span className="text-zinc-300">
-                        Bet ₱{h.amount.toFixed(2)}
-                      </span>
+                      <div
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${
+                          h.outcome === "WIN"
+                            ? "bg-[#39ff14]/20 text-[#39ff14]"
+                            : "bg-[#ff4444]/20 text-[#ff4444]"
+                        }`}
+                      >
+                        {h.roll}
+                      </div>
+                      <div>
+                        <p className="text-sm text-white">
+                          Bet {formatCurrency(h.amount)} on {h.guess}
+                        </p>
+                        <p className="text-xs text-[#666680]">
+                          Rolled {h.roll} ({h.roll >= 4 ? "High" : "Low"})
+                        </p>
+                      </div>
                     </div>
-                    <span
-                      className={
-                        h.outcome === "WIN"
-                          ? "text-emerald-400"
-                          : "text-pink-400"
-                      }
-                    >
-                      {h.outcome === "WIN" ? "WIN" : "LOSE"}
-                    </span>
+                    <div className="text-right">
+                      <p
+                        className={`text-sm font-bold ${
+                          h.outcome === "WIN" ? "text-[#39ff14]" : "text-[#ff4444]"
+                        }`}
+                      >
+                        {h.outcome === "WIN" ? `+${formatCurrency(h.amount)}` : `-${formatCurrency(h.amount)}`}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>

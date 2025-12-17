@@ -3,8 +3,15 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "My Portfolio",
-  description: "Portfolio with BetterBet mini-casino demo",
+  title: "BetterBet v2 - Demo Casino",
+  description: "Experience the thrill of casino gaming with provably fair games. Play Dice, Blackjack, Mines and more!",
+  keywords: ["casino", "gambling", "dice", "blackjack", "mines", "demo"],
+  authors: [{ name: "BetterBet" }],
+  openGraph: {
+    title: "BetterBet - Demo Casino",
+    description: "Experience the thrill of casino gaming with provably fair games.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -14,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

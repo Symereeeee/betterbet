@@ -1,33 +1,510 @@
 // app/betterbet/blackjack/page.tsx
-export default function BlackjackPlaceholder() {
+"use client";
+
+import { useState, useCallback } from "react";
+import { useWallet, formatCurrency } from "@/lib/useWallet";
+import Link from "next/link";
+
+type Card = {
+  suit: "hearts" | "diamonds" | "clubs" | "spades";
+  value: string;
+  numericValue: number;
+};
+
+type GameState = "betting" | "playing" | "dealer-turn" | "ended";
+type GameResult = "win" | "lose" | "push" | "blackjack" | null;
+
+const SUITS: Card["suit"][] = ["hearts", "diamonds", "clubs", "spades"];
+const VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+const getSuitSymbol = (suit: Card["suit"]) => {
+  switch (suit) {
+    case "hearts": return "♥";
+    case "diamonds": return "♦";
+    case "clubs": return "♣";
+    case "spades": return "♠";
+  }
+};
+
+const getSuitColor = (suit: Card["suit"]) => {
+  return suit === "hearts" || suit === "diamonds" ? "text-red-500" : "text-gray-900";
+};
+
+const createDeck = (): Card[] => {
+  const deck: Card[] = [];
+  for (const suit of SUITS) {
+    for (const value of VALUES) {
+      let numericValue: number;
+      if (value === "A") {
+        numericValue = 11;
+      } else if (["J", "Q", "K"].includes(value)) {
+        numericValue = 10;
+      } else {
+        numericValue = parseInt(value);
+      }
+      deck.push({ suit, value, numericValue });
+    }
+  }
+  return deck;
+};
+
+const shuffleDeck = (deck: Card[]): Card[] => {
+  const shuffled = [...deck];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+const calculateHand = (cards: Card[]): number => {
+  let total = 0;
+  let aces = 0;
+
+  for (const card of cards) {
+    if (card.value === "A") {
+      aces++;
+      total += 11;
+    } else {
+      total += card.numericValue;
+    }
+  }
+
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces--;
+  }
+
+  return total;
+};
+
+const CardComponent = ({ card, hidden = false }: { card: Card; hidden?: boolean }) => {
+  if (hidden) {
+    return (
+      <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 border-2 border-blue-500 flex items-center justify-center shadow-lg">
+        <div className="text-2xl text-blue-300">?</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <h1 className="text-3xl font-extrabold tracking-tight">
-          Blackjack (Coming Soon)
-        </h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          This table is still under construction. The idea:
-        </p>
+    <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg bg-white border-2 border-gray-200 flex flex-col items-center justify-between p-1.5 shadow-lg">
+      <div className={`text-sm sm:text-base font-bold ${getSuitColor(card.suit)} self-start`}>
+        {card.value}
+      </div>
+      <div className={`text-2xl sm:text-3xl ${getSuitColor(card.suit)}`}>
+        {getSuitSymbol(card.suit)}
+      </div>
+      <div className={`text-sm sm:text-base font-bold ${getSuitColor(card.suit)} self-end rotate-180`}>
+        {card.value}
+      </div>
+    </div>
+  );
+};
 
-        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-zinc-300">
-          <li>Player vs dealer, using a single shoe.</li>
-          <li>Hit / Stand controls with simple animations.</li>
-          <li>Virtual credits only, same wallet as Dice.</li>
-          <li>Bet size selector and win / loss history.</li>
-        </ul>
+export default function BlackjackPage() {
+  const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();
+  const [betAmount, setBetAmount] = useState(100);
+  const [deck, setDeck] = useState<Card[]>([]);
+  const [playerHand, setPlayerHand] = useState<Card[]>([]);
+  const [dealerHand, setDealerHand] = useState<Card[]>([]);
+  const [gameState, setGameState] = useState<GameState>("betting");
+  const [result, setResult] = useState<GameResult>(null);
+  const [message, setMessage] = useState("");
 
-        <p className="mt-6 text-xs text-zinc-500">
-          You can go back to{" "}
-          <a
-            href="/betterbet"
-            className="text-pink-400 underline"
-          >
-            BetterBet lobby
-          </a>{" "}
-          or keep this as a future feature idea for your
-          portfolio.
-        </p>
+  const playerTotal = calculateHand(playerHand);
+  const dealerTotal = calculateHand(dealerHand);
+  const dealerVisibleTotal = dealerHand.length > 0 ? calculateHand([dealerHand[0]]) : 0;
+
+  const startGame = useCallback(() => {
+    if (betAmount <= 0 || betAmount > balance) return;
+
+    const newDeck = shuffleDeck(createDeck());
+    const pHand = [newDeck.pop()!, newDeck.pop()!];
+    const dHand = [newDeck.pop()!, newDeck.pop()!];
+
+    setDeck(newDeck);
+    setPlayerHand(pHand);
+    setDealerHand(dHand);
+    setResult(null);
+    setMessage("");
+
+    const playerScore = calculateHand(pHand);
+    const dealerScore = calculateHand(dHand);
+
+    // Check for blackjacks
+    if (playerScore === 21 && dealerScore === 21) {
+      setGameState("ended");
+      setResult("push");
+      setMessage("Both have Blackjack! Push.");
+    } else if (playerScore === 21) {
+      setGameState("ended");
+      setResult("blackjack");
+      setMessage("Blackjack! You win 3:2!");
+      walletPlaceBet(betAmount, true, betAmount * 2.5);
+    } else if (dealerScore === 21) {
+      setGameState("ended");
+      setResult("lose");
+      setMessage("Dealer has Blackjack!");
+      walletPlaceBet(betAmount, false, 0);
+    } else {
+      setGameState("playing");
+    }
+  }, [betAmount, balance, walletPlaceBet]);
+
+  const hit = useCallback(() => {
+    if (gameState !== "playing" || deck.length === 0) return;
+
+    const newCard = deck.pop()!;
+    const newHand = [...playerHand, newCard];
+    const newDeck = [...deck];
+
+    setDeck(newDeck);
+    setPlayerHand(newHand);
+
+    const newTotal = calculateHand(newHand);
+    if (newTotal > 21) {
+      setGameState("ended");
+      setResult("lose");
+      setMessage("Bust! You went over 21.");
+      walletPlaceBet(betAmount, false, 0);
+    }
+  }, [gameState, deck, playerHand, betAmount, walletPlaceBet]);
+
+  const stand = useCallback(() => {
+    if (gameState !== "playing") return;
+
+    setGameState("dealer-turn");
+
+    // Dealer draws until 17
+    let newDealerHand = [...dealerHand];
+    let newDeck = [...deck];
+
+    const dealerDraw = async () => {
+      while (calculateHand(newDealerHand) < 17 && newDeck.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 600));
+        newDealerHand = [...newDealerHand, newDeck.pop()!];
+        setDealerHand([...newDealerHand]);
+        setDeck([...newDeck]);
+      }
+
+      const finalDealerTotal = calculateHand(newDealerHand);
+      const finalPlayerTotal = playerTotal;
+
+      setGameState("ended");
+
+      if (finalDealerTotal > 21) {
+        setResult("win");
+        setMessage("Dealer busts! You win!");
+        walletPlaceBet(betAmount, true, betAmount * 2);
+      } else if (finalDealerTotal > finalPlayerTotal) {
+        setResult("lose");
+        setMessage("Dealer wins with " + finalDealerTotal);
+        walletPlaceBet(betAmount, false, 0);
+      } else if (finalDealerTotal < finalPlayerTotal) {
+        setResult("win");
+        setMessage("You win with " + finalPlayerTotal + "!");
+        walletPlaceBet(betAmount, true, betAmount * 2);
+      } else {
+        setResult("push");
+        setMessage("Push! It's a tie.");
+      }
+    };
+
+    dealerDraw();
+  }, [gameState, deck, playerTotal, dealerHand, betAmount, walletPlaceBet]);
+
+  const doubleDown = useCallback(() => {
+    if (gameState !== "playing" || playerHand.length !== 2 || betAmount * 2 > balance) return;
+    if (deck.length === 0) return;
+
+    const newBetAmount = betAmount * 2;
+    const newCard = deck.pop()!;
+    const newHand = [...playerHand, newCard];
+    const newDeck = [...deck];
+
+    setDeck(newDeck);
+    setPlayerHand(newHand);
+
+    const newTotal = calculateHand(newHand);
+    if (newTotal > 21) {
+      setGameState("ended");
+      setResult("lose");
+      setMessage("Bust! You went over 21.");
+      walletPlaceBet(newBetAmount, false, 0);
+      return;
+    }
+
+    // Auto stand after double
+    setGameState("dealer-turn");
+    setBetAmount(newBetAmount);
+
+    let newDealerHand = [...dealerHand];
+    let currentDeck = [...newDeck];
+
+    const dealerDraw = async () => {
+      while (calculateHand(newDealerHand) < 17 && currentDeck.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 600));
+        newDealerHand = [...newDealerHand, currentDeck.pop()!];
+        setDealerHand([...newDealerHand]);
+        setDeck([...currentDeck]);
+      }
+
+      const finalDealerTotal = calculateHand(newDealerHand);
+      const finalPlayerTotal = newTotal;
+
+      setGameState("ended");
+
+      if (finalDealerTotal > 21) {
+        setResult("win");
+        setMessage("Dealer busts! You win!");
+        walletPlaceBet(newBetAmount, true, newBetAmount * 2);
+      } else if (finalDealerTotal > finalPlayerTotal) {
+        setResult("lose");
+        setMessage("Dealer wins with " + finalDealerTotal);
+        walletPlaceBet(newBetAmount, false, 0);
+      } else if (finalDealerTotal < finalPlayerTotal) {
+        setResult("win");
+        setMessage("You win with " + finalPlayerTotal + "!");
+        walletPlaceBet(newBetAmount, true, newBetAmount * 2);
+      } else {
+        setResult("push");
+        setMessage("Push! It's a tie.");
+      }
+    };
+
+    dealerDraw();
+  }, [gameState, playerHand, deck, dealerHand, betAmount, balance, walletPlaceBet]);
+
+  const resetGame = () => {
+    setGameState("betting");
+    setPlayerHand([]);
+    setDealerHand([]);
+    setDeck([]);
+    setResult(null);
+    setMessage("");
+    setBetAmount(100);
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-pulse text-[#b0b0c0]">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 lg:p-6">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-[#666680] mb-6">
+        <Link href="/betterbet" className="hover:text-white transition-colors">
+          Casino
+        </Link>
+        <span>/</span>
+        <span className="text-white">Blackjack</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* LEFT: Betting Panel */}
+        <div className="lg:col-span-1 space-y-4">
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+            <h2 className="text-lg font-bold text-white mb-4">Blackjack</h2>
+
+            {/* Bet Amount */}
+            <div className="space-y-2 mb-4">
+              <label className="text-xs text-[#b0b0c0] font-medium">Bet Amount</label>
+              <div className="flex items-center bg-[#0a0a0f] rounded-lg border border-[#2a2a3e] overflow-hidden">
+                <span className="px-3 text-[#666680]">$</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={betAmount}
+                  onChange={(e) => setBetAmount(Number(e.target.value) || 0)}
+                  disabled={gameState !== "betting"}
+                  className="flex-1 bg-transparent py-3 text-white outline-none disabled:opacity-50"
+                />
+                <div className="flex border-l border-[#2a2a3e]">
+                  <button
+                    onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))}
+                    disabled={gameState !== "betting"}
+                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm disabled:opacity-50"
+                  >
+                    ½
+                  </button>
+                  <button
+                    onClick={() => setBetAmount((a) => Math.min(balance, a * 2))}
+                    disabled={gameState !== "betting"}
+                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm border-l border-[#2a2a3e] disabled:opacity-50"
+                  >
+                    2×
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {[25, 50, 100, 500].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setBetAmount(preset)}
+                    disabled={gameState !== "betting"}
+                    className="flex-1 py-1.5 bg-[#0a0a0f] hover:bg-[#2a2a3e] text-[#b0b0c0] hover:text-white text-xs rounded-md transition-colors disabled:opacity-50"
+                  >
+                    ${preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Game Actions */}
+            {gameState === "betting" ? (
+              <button
+                onClick={startGame}
+                disabled={betAmount <= 0 || betAmount > balance}
+                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] disabled:bg-[#2a2a3e] disabled:text-[#666680] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
+              >
+                Deal Cards
+              </button>
+            ) : gameState === "playing" ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={hit}
+                    className="py-3 bg-[#39ff14] hover:bg-[#7fff00] text-black font-bold rounded-lg transition-colors"
+                  >
+                    Hit
+                  </button>
+                  <button
+                    onClick={stand}
+                    className="py-3 bg-[#2a2a3e] hover:bg-[#3d5a6c] text-white font-bold rounded-lg transition-colors"
+                  >
+                    Stand
+                  </button>
+                </div>
+                {playerHand.length === 2 && betAmount * 2 <= balance && (
+                  <button
+                    onClick={doubleDown}
+                    className="w-full py-3 bg-[#ffc107] hover:bg-[#ffcd38] text-black font-bold rounded-lg transition-colors"
+                  >
+                    Double Down
+                  </button>
+                )}
+              </div>
+            ) : gameState === "ended" ? (
+              <button
+                onClick={resetGame}
+                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] text-black font-bold rounded-lg transition-colors"
+              >
+                New Game
+              </button>
+            ) : (
+              <div className="py-4 text-center text-[#b0b0c0]">
+                Dealer is playing...
+              </div>
+            )}
+
+            {/* Balance Display */}
+            <div className="mt-4 p-3 bg-[#0a0a0f] rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span className="text-[#b0b0c0]">Balance</span>
+                <span className="text-white font-bold">{formatCurrency(balance)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Rules Card */}
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+            <h3 className="text-sm font-medium text-white mb-3">Rules</h3>
+            <ul className="space-y-2 text-xs text-[#b0b0c0]">
+              <li>• Get closer to 21 than the dealer without busting</li>
+              <li>• Blackjack (21 with 2 cards) pays 3:2</li>
+              <li>• Dealer stands on 17</li>
+              <li>• Double down available on first two cards</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* RIGHT: Game Table */}
+        <div className="lg:col-span-2">
+          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-6 min-h-[500px]">
+            {/* Game Result Message */}
+            {message && (
+              <div className={`mb-6 p-4 rounded-lg text-center font-bold ${
+                result === "win" || result === "blackjack"
+                  ? "bg-[#39ff14]/20 text-[#39ff14]"
+                  : result === "lose"
+                  ? "bg-[#ff4444]/20 text-[#ff4444]"
+                  : "bg-[#ffc107]/20 text-[#ffc107]"
+              }`}>
+                {message}
+              </div>
+            )}
+
+            {/* Dealer Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-[#b0b0c0]">Dealer</h3>
+                <span className="text-lg font-bold text-white">
+                  {gameState === "ended" || gameState === "dealer-turn"
+                    ? dealerTotal
+                    : dealerHand.length > 0
+                    ? dealerVisibleTotal
+                    : "-"}
+                </span>
+              </div>
+              <div className="flex gap-2 flex-wrap min-h-[112px]">
+                {dealerHand.length === 0 ? (
+                  <div className="w-20 h-28 rounded-lg border-2 border-dashed border-[#2a2a3e] flex items-center justify-center">
+                    <span className="text-[#666680] text-xs">Dealer</span>
+                  </div>
+                ) : (
+                  dealerHand.map((card, i) => (
+                    <CardComponent
+                      key={i}
+                      card={card}
+                      hidden={i === 1 && gameState === "playing"}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-[#2a2a3e] my-6" />
+
+            {/* Player Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-[#b0b0c0]">Your Hand</h3>
+                <span className={`text-lg font-bold ${
+                  playerTotal > 21 ? "text-[#ff4444]" : playerTotal === 21 ? "text-[#39ff14]" : "text-white"
+                }`}>
+                  {playerHand.length > 0 ? playerTotal : "-"}
+                </span>
+              </div>
+              <div className="flex gap-2 flex-wrap min-h-[112px]">
+                {playerHand.length === 0 ? (
+                  <div className="w-20 h-28 rounded-lg border-2 border-dashed border-[#2a2a3e] flex items-center justify-center">
+                    <span className="text-[#666680] text-xs">You</span>
+                  </div>
+                ) : (
+                  playerHand.map((card, i) => (
+                    <CardComponent key={i} card={card} />
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Bet Info */}
+            {gameState !== "betting" && (
+              <div className="mt-8 pt-4 border-t border-[#2a2a3e]">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#b0b0c0]">Current Bet</span>
+                  <span className="text-white font-bold">{formatCurrency(betAmount)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

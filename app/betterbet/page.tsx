@@ -1,292 +1,228 @@
 // app/betterbet/page.tsx
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import GameCard from "@/components/betterbet/GameCard";
+import { useWallet, formatCurrency } from "@/lib/useWallet";
 
-const games = [
+const originalGames = [
   {
-    id: "dice",
+    name: "Dice",
     href: "/betterbet/dice",
-    title: "High / Low Dice",
-    tag: "Dice • variable odds",
-    badge: "Popular",
-    description: "Quick rolls, simple odds, instant results.",
-    gradient: "from-pink-500 via-fuchsia-500 to-purple-500",
+    icon: "🎲",
+    description: "Classic high/low dice game with 2x multiplier",
+    tag: "Popular",
+    gradient: "from-[#8b5cf6] to-[#6d28d9]",
+    houseEdge: "1%",
   },
   {
-    id: "blackjack",
+    name: "Blackjack",
     href: "/betterbet/blackjack",
-    title: "Blackjack (Soon)",
-    tag: "Cards • 3:2",
-    badge: "Coming soon",
-    description: "Beat the dealer without going over 21.",
-    gradient: "from-emerald-500 via-lime-500 to-teal-500",
+    icon: "🃏",
+    description: "Beat the dealer without going over 21",
+    tag: "Classic",
+    gradient: "from-[#f97316] to-[#ea580c]",
+    houseEdge: "0.5%",
+  },
+  {
+    name: "Mines",
+    href: "/betterbet/mines",
+    icon: "💣",
+    description: "Navigate the minefield for big rewards",
+    tag: "New",
+    gradient: "from-[#39ff14] to-[#22c55e]",
+    houseEdge: "1%",
+  },
+  {
+    name: "Plinko",
+    href: "/betterbet/plinko",
+    icon: "⚪",
+    description: "Drop the ball and watch it bounce to riches",
+    tag: "Fun",
+    gradient: "from-[#8b5cf6] via-[#f97316] to-[#39ff14]",
+    houseEdge: "1%",
+    comingSoon: true,
   },
 ];
 
-export default function BetterBetLanding() {
-  const [showCashIn, setShowCashIn] = useState(false);
-  const [cashInAmount, setCashInAmount] = useState<number>(1000);
-  const [cashInLoading, setCashInLoading] = useState(false);
-  const [cashInError, setCashInError] = useState<string | null>(null);
+const stats = [
+  { label: "Total Games", value: "4" },
+  { label: "Max Multiplier", value: "1000x" },
+  { label: "Min Bet", value: "$0.10" },
+  { label: "Max Bet", value: "$10,000" },
+];
 
-  // always show on first visit (per browser)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const seen = window.localStorage.getItem("betterbet_demo_seen");
-    if (!seen) setShowCashIn(true);
-  }, []);
+export default function BetterBetLobby() {
+  const { balance, totalWagered, totalWon, betsPlaced, isLoaded } = useWallet();
 
-  const handleConfirmCashIn = async () => {
-    setCashInError(null);
-
-    if (!Number.isFinite(cashInAmount) || cashInAmount <= 0) {
-      setCashInError("Amount must be greater than 0.");
-      return;
-    }
-
-    try {
-      setCashInLoading(true);
-
-      const res = await fetch("/api/betterbet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "cashin",
-          amount: cashInAmount,
-        }),
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch (e) {
-        console.error("Failed to parse JSON from /api/betterbet", e);
-      }
-
-      if (!res.ok || data?.error) {
-        setCashInError(
-          data?.error || `Cash in failed (status ${res.status}).`
-        );
-        return;
-      }
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("betterbet_demo_seen", "1");
-        if (typeof data?.newBalance === "number") {
-          window.localStorage.setItem(
-            "betterbet_last_balance",
-            String(data.newBalance)
-          );
-        }
-      }
-
-      setShowCashIn(false);
-    } catch (err) {
-      console.error(err);
-      setCashInError("Network error during cash in.");
-    } finally {
-      setCashInLoading(false);
-    }
-  };
-
-  const handleSkip = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("betterbet_demo_seen", "1");
-    }
-    setShowCashIn(false);
-  };
+  const profit = totalWon - totalWagered;
 
   return (
-    <div className="min-h-screen">
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        {/* HEADER */}
-        <header className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
-          <div className="flex items-center gap-3">
-            <img
-              src="/betterbet-logo.png"
-              alt="BetterBet Logo"
-              className="h-10 w-10 rounded-xl shadow-lg shadow-pink-500/20 object-cover"
-            />
-            <div>
-              <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">
-                BetterBet
-              </h1>
-              <p className="mt-1 text-sm text-zinc-400">
-                Pick a game mode and play with virtual credits.
-              </p>
-            </div>
-          </div>
+    <div className="p-4 lg:p-6">
+      {/* Hero Banner */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#12121a] via-[#1a1a2e] to-[#12121a] border border-[#2a2a3e] mb-8">
+        {/* Decorative gradient orbs */}
+        <div className="absolute top-0 left-1/4 w-64 h-64 bg-[#8b5cf6]/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[#f97316]/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 right-1/3 w-32 h-32 bg-[#39ff14]/10 rounded-full blur-2xl" />
 
-          <span className="rounded-full border border-zinc-700 bg-zinc-900 px-4 py-1 text-xs text-zinc-400">
-            Demo Casino • v1
-          </span>
-        </header>
-
-        {/* OUR FAVORITES */}
-        <section className="mt-10">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold italic">
-                Our Favorites!
-              </h2>
-              <p className="text-sm text-zinc-400">
-                Top-rated games hand-picked just for you.
-              </p>
-            </div>
-            <button className="text-xs font-semibold uppercase tracking-[0.2em] text-pink-400">
-              See all →
-            </button>
-          </div>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {games.map((game) => (
-              <Link
-                key={game.id}
-                href={game.href}
-                className="group relative overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/80 shadow-lg transition hover:-translate-y-1 hover:border-pink-500/70 hover:shadow-pink-500/30"
-              >
-                <div
-                  className={`h-32 w-full bg-gradient-to-tr ${game.gradient} opacity-80 transition group-hover:opacity-100`}
-                />
-                <div className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-semibold text-zinc-200">
-                  {game.badge}
-                </div>
-
-                <div className="space-y-2 px-4 pb-4 pt-3">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500">
-                    {game.tag}
-                  </p>
-                  <h3 className="text-lg font-semibold tracking-tight">
-                    {game.title}
-                  </h3>
-                  <p className="text-xs text-zinc-400">
-                    {game.description}
-                  </p>
-
-                  <div className="mt-3 flex items-center justify-between text-[11px] text-zinc-500">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-2 py-1">
-                      🎮 Demo play
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-pink-400 group-hover:translate-x-0.5 group-hover:text-pink-300">
-                      Play now <span>➜</span>
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        {/* HOT GAMES */}
-        <section className="mt-12">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold italic">Hot Games!</h2>
-              <p className="text-sm text-zinc-400">
-                Start spinning, rolling, and dealing.
-              </p>
-            </div>
-            <button className="text-xs font-semibold uppercase tracking-[0.2em] text-pink-400">
-              See all →
-            </button>
-          </div>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-3">
-            <Link
-              href="/betterbet/dice"
-              className="group overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-lg transition hover:-translate-y-1 hover:border-pink-500/70 hover:shadow-pink-500/30"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                Hot pick
-              </p>
-              <h3 className="mt-2 text-lg font-semibold">High / Low Dice</h3>
-              <p className="mt-1 text-xs text-zinc-400">
-                Your current game. Try to build a winning streak.
-              </p>
-              <p className="mt-3 text-xs text-pink-400 group-hover:translate-x-0.5">
-                Play dice →
-              </p>
-            </Link>
-
-            <Link
-              href="/betterbet/blackjack"
-              className="group overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/70 p-4 opacity-70 shadow-lg transition hover:-translate-y-1 hover:border-emerald-500/70 hover:opacity-100 hover:shadow-emerald-500/20"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                Coming soon
-              </p>
-              <h3 className="mt-2 text-lg font-semibold">Blackjack Table</h3>
-              <p className="mt-1 text-xs text-zinc-400">
-                Work in progress. Click to see the prototype rules.
-              </p>
-              <p className="mt-3 text-xs text-emerald-400 group-hover:translate-x-0.5">
-                View table →
-              </p>
-            </Link>
-
-            <div className="hidden rounded-3xl border border-dashed border-zinc-800 bg-zinc-950/40 p-4 text-xs text-zinc-500 md:block">
-              More games coming soon…
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* CASH-IN MODAL */}
-      {showCashIn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold">Cash in demo credits</h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              Choose how many virtual credits you want to start with.
+        <div className="relative p-6 lg:p-10">
+          <div className="max-w-2xl">
+            <h1 className="text-3xl lg:text-5xl font-bold text-white mb-4">
+              Welcome to <span className="bg-gradient-to-r from-[#8b5cf6] via-[#f97316] to-[#39ff14] bg-clip-text text-transparent">BetterBet v2</span>
+            </h1>
+            <p className="text-lg text-[#b0b0c0] mb-6">
+              Experience the thrill of casino gaming with our provably fair games.
+              No real money involved - just pure entertainment.
             </p>
-
-            <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-500">₱</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full bg-transparent text-sm outline-none"
-                  value={Number.isFinite(cashInAmount) ? cashInAmount : ""}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "") {
-                      setCashInAmount(0);
-                      return;
-                    }
-                    const num = Number(raw);
-                    if (Number.isFinite(num)) setCashInAmount(num);
-                  }}
-                />
-              </div>
+            <div className="flex flex-wrap gap-4">
+              <a
+                href="/betterbet/dice"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#8b5cf6] to-[#a78bfa] hover:from-[#a78bfa] hover:to-[#8b5cf6] text-white font-bold rounded-lg transition-all shadow-lg shadow-purple-500/25"
+              >
+                <span>🎲</span>
+                Play Dice
+              </a>
+              <a
+                href="/betterbet/blackjack"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#f97316] to-[#fb923c] hover:from-[#fb923c] hover:to-[#f97316] text-white font-bold rounded-lg transition-all shadow-lg shadow-orange-500/25"
+              >
+                <span>🃏</span>
+                Play Blackjack
+              </a>
             </div>
+          </div>
 
-            {cashInError && (
-              <p className="mt-2 text-xs text-red-400">{cashInError}</p>
-            )}
-
-            <div className="mt-6 flex justify-end gap-3 text-sm">
-              <button
-                type="button"
-                onClick={handleSkip}
-                className="rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-zinc-300 hover:bg-zinc-800"
-              >
-                Skip
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmCashIn}
-                disabled={cashInLoading}
-                className="rounded-full bg-emerald-500 px-5 py-2 font-semibold text-black shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {cashInLoading ? "Cashing in…" : "Confirm & play"}
-              </button>
+          {/* Floating stats card */}
+          <div className="hidden lg:block absolute top-6 right-6 w-64 p-4 bg-[#0a0a0f]/80 backdrop-blur rounded-xl border border-[#2a2a3e]">
+            <p className="text-xs text-[#666680] mb-1">Your Balance</p>
+            <p className="text-2xl font-bold text-[#39ff14] mb-4" style={{ textShadow: '0 0 10px rgba(57, 255, 20, 0.5)' }}>
+              {isLoaded ? formatCurrency(balance) : "$0.00"}
+            </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[#b0b0c0]">Bets Placed</span>
+                <span className="text-white font-medium">{betsPlaced}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#b0b0c0]">Total Wagered</span>
+                <span className="text-white font-medium">{formatCurrency(totalWagered)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#b0b0c0]">Profit/Loss</span>
+                <span className={`font-medium ${profit >= 0 ? "text-[#39ff14]" : "text-[#ff4444]"}`}>
+                  {profit >= 0 ? "+" : ""}{formatCurrency(profit)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </section>
+
+      {/* Stats bar (mobile) */}
+      <div className="lg:hidden grid grid-cols-2 gap-3 mb-8">
+        <div className="p-4 bg-[#12121a] rounded-xl border border-[#2a2a3e]">
+          <p className="text-xs text-[#666680]">Your Balance</p>
+          <p className="text-xl font-bold text-[#39ff14]" style={{ textShadow: '0 0 10px rgba(57, 255, 20, 0.5)' }}>
+            {isLoaded ? formatCurrency(balance) : "$0.00"}
+          </p>
+        </div>
+        <div className="p-4 bg-[#12121a] rounded-xl border border-[#2a2a3e]">
+          <p className="text-xs text-[#666680]">Profit/Loss</p>
+          <p className={`text-xl font-bold ${profit >= 0 ? "text-[#39ff14]" : "text-[#ff4444]"}`}>
+            {profit >= 0 ? "+" : ""}{formatCurrency(profit)}
+          </p>
+        </div>
+      </div>
+
+      {/* Platform stats */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {stats.map((stat, i) => (
+          <div
+            key={stat.label}
+            className="p-4 bg-[#12121a] rounded-xl border border-[#2a2a3e] text-center hover:border-[#8b5cf6]/50 transition-colors"
+          >
+            <p className={`text-2xl lg:text-3xl font-bold mb-1 ${
+              i === 0 ? "text-[#8b5cf6]" : i === 1 ? "text-[#f97316]" : i === 2 ? "text-[#39ff14]" : "text-white"
+            }`}>{stat.value}</p>
+            <p className="text-sm text-[#b0b0c0]">{stat.label}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Our Games */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white">BetterBet Originals</h2>
+            <p className="text-sm text-[#b0b0c0]">Our exclusive in-house games</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {originalGames.map((game) => (
+            <GameCard key={game.name} {...game} />
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="mb-8">
+        <h2 className="text-2xl font-bold text-white mb-6">How It Works</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-6 bg-[#12121a] rounded-xl border border-[#2a2a3e] hover:border-[#8b5cf6]/50 transition-colors">
+            <div className="w-12 h-12 rounded-xl bg-[#8b5cf6]/20 flex items-center justify-center text-2xl mb-4">
+              💰
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">1. Get Demo Credits</h3>
+            <p className="text-sm text-[#b0b0c0]">
+              Start with $10,000 in demo credits. Add more anytime from your wallet.
+            </p>
+          </div>
+          <div className="p-6 bg-[#12121a] rounded-xl border border-[#2a2a3e] hover:border-[#f97316]/50 transition-colors">
+            <div className="w-12 h-12 rounded-xl bg-[#f97316]/20 flex items-center justify-center text-2xl mb-4">
+              🎮
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">2. Choose a Game</h3>
+            <p className="text-sm text-[#b0b0c0]">
+              Pick from our selection of casino classics and original games.
+            </p>
+          </div>
+          <div className="p-6 bg-[#12121a] rounded-xl border border-[#2a2a3e] hover:border-[#39ff14]/50 transition-colors">
+            <div className="w-12 h-12 rounded-xl bg-[#39ff14]/20 flex items-center justify-center text-2xl mb-4">
+              🏆
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">3. Play & Win</h3>
+            <p className="text-sm text-[#b0b0c0]">
+              Place your bets and enjoy the thrill. Track your stats and climb the leaderboard.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section>
+        <h2 className="text-2xl font-bold text-white mb-6">Why BetterBet?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { icon: "🔒", title: "Provably Fair", desc: "All games use verifiable random outcomes", color: "#8b5cf6" },
+            { icon: "⚡", title: "Instant Play", desc: "No downloads or registration required", color: "#f97316" },
+            { icon: "📱", title: "Mobile Ready", desc: "Play on any device, anywhere", color: "#39ff14" },
+            { icon: "🎁", title: "Free Forever", desc: "Demo credits never expire", color: "#8b5cf6" },
+          ].map((feature) => (
+            <div
+              key={feature.title}
+              className="p-4 bg-[#12121a] rounded-xl border border-[#2a2a3e] flex items-start gap-3 hover:border-opacity-50 transition-colors"
+              style={{ '--hover-color': feature.color } as React.CSSProperties}
+            >
+              <span className="text-2xl">{feature.icon}</span>
+              <div>
+                <h3 className="font-bold text-white">{feature.title}</h3>
+                <p className="text-sm text-[#b0b0c0]">{feature.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
