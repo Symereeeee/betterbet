@@ -3,12 +3,14 @@
 
 import { useState, useCallback } from "react";
 import { useWallet, formatCurrency } from "@/lib/useWallet";
+import { useSounds } from "@/lib/useSounds";
 import Link from "next/link";
 
 type Card = {
   suit: "hearts" | "diamonds" | "clubs" | "spades";
   value: string;
   numericValue: number;
+  id: number; // For animation tracking
 };
 
 type GameState = "betting" | "playing" | "dealer-turn" | "ended";
@@ -16,6 +18,8 @@ type GameResult = "win" | "lose" | "push" | "blackjack" | null;
 
 const SUITS: Card["suit"][] = ["hearts", "diamonds", "clubs", "spades"];
 const VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+let cardIdCounter = 0;
 
 const getSuitSymbol = (suit: Card["suit"]) => {
   switch (suit) {
@@ -42,7 +46,7 @@ const createDeck = (): Card[] => {
       } else {
         numericValue = parseInt(value);
       }
-      deck.push({ suit, value, numericValue });
+      deck.push({ suit, value, numericValue, id: cardIdCounter++ });
     }
   }
   return deck;
@@ -81,14 +85,14 @@ const calculateHand = (cards: Card[]): number => {
 const CardComponent = ({ card, hidden = false }: { card: Card; hidden?: boolean }) => {
   if (hidden) {
     return (
-      <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 border-2 border-blue-500 flex items-center justify-center shadow-lg">
-        <div className="text-2xl text-blue-300">?</div>
+      <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg bg-gradient-to-br from-[#DC2626] to-[#8B0000] border-2 border-[#DC2626] flex items-center justify-center shadow-lg animate-deal-card">
+        <div className="text-2xl text-red-300">?</div>
       </div>
     );
   }
 
   return (
-    <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg bg-white border-2 border-gray-200 flex flex-col items-center justify-between p-1.5 shadow-lg">
+    <div className="w-16 h-24 sm:w-20 sm:h-28 rounded-lg bg-white border-2 border-gray-200 flex flex-col items-center justify-between p-1.5 shadow-lg animate-deal-card hover:scale-105 hover:-translate-y-1 transition-transform">
       <div className={`text-sm sm:text-base font-bold ${getSuitColor(card.suit)} self-start`}>
         {card.value}
       </div>
@@ -104,6 +108,7 @@ const CardComponent = ({ card, hidden = false }: { card: Card; hidden?: boolean 
 
 export default function BlackjackPage() {
   const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();
+  const { play } = useSounds();
   const [betAmount, setBetAmount] = useState(100);
   const [deck, setDeck] = useState<Card[]>([]);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
@@ -118,6 +123,11 @@ export default function BlackjackPage() {
 
   const startGame = useCallback(() => {
     if (betAmount <= 0 || betAmount > balance) return;
+
+    play("flip");
+    setTimeout(() => play("flip"), 150);
+    setTimeout(() => play("flip"), 300);
+    setTimeout(() => play("flip"), 450);
 
     const newDeck = shuffleDeck(createDeck());
     const pHand = [newDeck.pop()!, newDeck.pop()!];
@@ -141,19 +151,23 @@ export default function BlackjackPage() {
       setGameState("ended");
       setResult("blackjack");
       setMessage("Blackjack! You win 3:2!");
+      setTimeout(() => play("bigWin"), 500);
       walletPlaceBet(betAmount, true, betAmount * 2.5);
     } else if (dealerScore === 21) {
       setGameState("ended");
       setResult("lose");
       setMessage("Dealer has Blackjack!");
+      setTimeout(() => play("lose"), 500);
       walletPlaceBet(betAmount, false, 0);
     } else {
       setGameState("playing");
     }
-  }, [betAmount, balance, walletPlaceBet]);
+  }, [betAmount, balance, walletPlaceBet, play]);
 
   const hit = useCallback(() => {
     if (gameState !== "playing" || deck.length === 0) return;
+
+    play("flip");
 
     const newCard = deck.pop()!;
     const newHand = [...playerHand, newCard];
@@ -167,22 +181,24 @@ export default function BlackjackPage() {
       setGameState("ended");
       setResult("lose");
       setMessage("Bust! You went over 21.");
+      setTimeout(() => play("lose"), 300);
       walletPlaceBet(betAmount, false, 0);
     }
-  }, [gameState, deck, playerHand, betAmount, walletPlaceBet]);
+  }, [gameState, deck, playerHand, betAmount, walletPlaceBet, play]);
 
   const stand = useCallback(() => {
     if (gameState !== "playing") return;
 
+    play("flip");
     setGameState("dealer-turn");
 
-    // Dealer draws until 17
     let newDealerHand = [...dealerHand];
     let newDeck = [...deck];
 
     const dealerDraw = async () => {
       while (calculateHand(newDealerHand) < 17 && newDeck.length > 0) {
         await new Promise(resolve => setTimeout(resolve, 600));
+        play("flip");
         newDealerHand = [...newDealerHand, newDeck.pop()!];
         setDealerHand([...newDealerHand]);
         setDeck([...newDeck]);
@@ -196,14 +212,17 @@ export default function BlackjackPage() {
       if (finalDealerTotal > 21) {
         setResult("win");
         setMessage("Dealer busts! You win!");
+        play("win");
         walletPlaceBet(betAmount, true, betAmount * 2);
       } else if (finalDealerTotal > finalPlayerTotal) {
         setResult("lose");
         setMessage("Dealer wins with " + finalDealerTotal);
+        play("lose");
         walletPlaceBet(betAmount, false, 0);
       } else if (finalDealerTotal < finalPlayerTotal) {
         setResult("win");
         setMessage("You win with " + finalPlayerTotal + "!");
+        play("win");
         walletPlaceBet(betAmount, true, betAmount * 2);
       } else {
         setResult("push");
@@ -212,11 +231,13 @@ export default function BlackjackPage() {
     };
 
     dealerDraw();
-  }, [gameState, deck, playerTotal, dealerHand, betAmount, walletPlaceBet]);
+  }, [gameState, deck, playerTotal, dealerHand, betAmount, walletPlaceBet, play]);
 
   const doubleDown = useCallback(() => {
     if (gameState !== "playing" || playerHand.length !== 2 || betAmount * 2 > balance) return;
     if (deck.length === 0) return;
+
+    play("flip");
 
     const newBetAmount = betAmount * 2;
     const newCard = deck.pop()!;
@@ -231,11 +252,12 @@ export default function BlackjackPage() {
       setGameState("ended");
       setResult("lose");
       setMessage("Bust! You went over 21.");
+      setTimeout(() => play("lose"), 300);
       walletPlaceBet(newBetAmount, false, 0);
       return;
     }
 
-    // Auto stand after double
+    setTimeout(() => play("flip"), 400);
     setGameState("dealer-turn");
     setBetAmount(newBetAmount);
 
@@ -245,6 +267,7 @@ export default function BlackjackPage() {
     const dealerDraw = async () => {
       while (calculateHand(newDealerHand) < 17 && currentDeck.length > 0) {
         await new Promise(resolve => setTimeout(resolve, 600));
+        play("flip");
         newDealerHand = [...newDealerHand, currentDeck.pop()!];
         setDealerHand([...newDealerHand]);
         setDeck([...currentDeck]);
@@ -258,14 +281,17 @@ export default function BlackjackPage() {
       if (finalDealerTotal > 21) {
         setResult("win");
         setMessage("Dealer busts! You win!");
+        play("bigWin");
         walletPlaceBet(newBetAmount, true, newBetAmount * 2);
       } else if (finalDealerTotal > finalPlayerTotal) {
         setResult("lose");
         setMessage("Dealer wins with " + finalDealerTotal);
+        play("lose");
         walletPlaceBet(newBetAmount, false, 0);
       } else if (finalDealerTotal < finalPlayerTotal) {
         setResult("win");
         setMessage("You win with " + finalPlayerTotal + "!");
+        play("bigWin");
         walletPlaceBet(newBetAmount, true, newBetAmount * 2);
       } else {
         setResult("push");
@@ -274,7 +300,7 @@ export default function BlackjackPage() {
     };
 
     dealerDraw();
-  }, [gameState, playerHand, deck, dealerHand, betAmount, balance, walletPlaceBet]);
+  }, [gameState, playerHand, deck, dealerHand, betAmount, balance, walletPlaceBet, play]);
 
   const resetGame = () => {
     setGameState("betting");
@@ -289,7 +315,7 @@ export default function BlackjackPage() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-pulse text-[#b0b0c0]">Loading...</div>
+        <div className="animate-pulse text-[#b0b0b0]">Loading...</div>
       </div>
     );
   }
@@ -297,7 +323,7 @@ export default function BlackjackPage() {
   return (
     <div className="p-4 lg:p-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-[#666680] mb-6">
+      <div className="flex items-center gap-2 text-sm text-[#666666] mb-6">
         <Link href="/betterbet" className="hover:text-white transition-colors">
           Casino
         </Link>
@@ -308,14 +334,14 @@ export default function BlackjackPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Betting Panel */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
             <h2 className="text-lg font-bold text-white mb-4">Blackjack</h2>
 
             {/* Bet Amount */}
             <div className="space-y-2 mb-4">
-              <label className="text-xs text-[#b0b0c0] font-medium">Bet Amount</label>
-              <div className="flex items-center bg-[#0a0a0f] rounded-lg border border-[#2a2a3e] overflow-hidden">
-                <span className="px-3 text-[#666680]">$</span>
+              <label className="text-xs text-[#b0b0b0] font-medium">Bet Amount</label>
+              <div className="flex items-center bg-[#0a0a0a] rounded-lg border border-[#2a2a2a] overflow-hidden">
+                <span className="px-3 text-[#666666]">$</span>
                 <input
                   type="number"
                   min={1}
@@ -324,18 +350,18 @@ export default function BlackjackPage() {
                   disabled={gameState !== "betting"}
                   className="flex-1 bg-transparent py-3 text-white outline-none disabled:opacity-50"
                 />
-                <div className="flex border-l border-[#2a2a3e]">
+                <div className="flex border-l border-[#2a2a2a]">
                   <button
                     onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))}
                     disabled={gameState !== "betting"}
-                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm disabled:opacity-50"
+                    className="px-3 py-3 text-[#b0b0b0] hover:text-white hover:bg-[#2a2a2a] transition-colors text-sm disabled:opacity-50"
                   >
                     ½
                   </button>
                   <button
                     onClick={() => setBetAmount((a) => Math.min(balance, a * 2))}
                     disabled={gameState !== "betting"}
-                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm border-l border-[#2a2a3e] disabled:opacity-50"
+                    className="px-3 py-3 text-[#b0b0b0] hover:text-white hover:bg-[#2a2a2a] transition-colors text-sm border-l border-[#2a2a2a] disabled:opacity-50"
                   >
                     2×
                   </button>
@@ -347,7 +373,7 @@ export default function BlackjackPage() {
                     key={preset}
                     onClick={() => setBetAmount(preset)}
                     disabled={gameState !== "betting"}
-                    className="flex-1 py-1.5 bg-[#0a0a0f] hover:bg-[#2a2a3e] text-[#b0b0c0] hover:text-white text-xs rounded-md transition-colors disabled:opacity-50"
+                    className="flex-1 py-1.5 bg-[#0a0a0a] hover:bg-[#2a2a2a] text-[#b0b0b0] hover:text-white text-xs rounded-md transition-colors disabled:opacity-50"
                   >
                     ${preset}
                   </button>
@@ -360,7 +386,7 @@ export default function BlackjackPage() {
               <button
                 onClick={startGame}
                 disabled={betAmount <= 0 || betAmount > balance}
-                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] disabled:bg-[#2a2a3e] disabled:text-[#666680] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
+                className="w-full py-4 bg-[#FFD700] hover:bg-[#FFEA00] disabled:bg-[#2a2a2a] disabled:text-[#666666] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
               >
                 Deal Cards
               </button>
@@ -369,13 +395,13 @@ export default function BlackjackPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={hit}
-                    className="py-3 bg-[#39ff14] hover:bg-[#7fff00] text-black font-bold rounded-lg transition-colors"
+                    className="py-3 bg-[#FFD700] hover:bg-[#FFEA00] text-black font-bold rounded-lg transition-colors"
                   >
                     Hit
                   </button>
                   <button
                     onClick={stand}
-                    className="py-3 bg-[#2a2a3e] hover:bg-[#3d5a6c] text-white font-bold rounded-lg transition-colors"
+                    className="py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white font-bold rounded-lg transition-colors"
                   >
                     Stand
                   </button>
@@ -383,7 +409,7 @@ export default function BlackjackPage() {
                 {playerHand.length === 2 && betAmount * 2 <= balance && (
                   <button
                     onClick={doubleDown}
-                    className="w-full py-3 bg-[#ffc107] hover:bg-[#ffcd38] text-black font-bold rounded-lg transition-colors"
+                    className="w-full py-3 bg-[#DC2626] hover:bg-[#EF4444] text-white font-bold rounded-lg transition-colors"
                   >
                     Double Down
                   </button>
@@ -392,29 +418,29 @@ export default function BlackjackPage() {
             ) : gameState === "ended" ? (
               <button
                 onClick={resetGame}
-                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] text-black font-bold rounded-lg transition-colors"
+                className="w-full py-4 bg-[#FFD700] hover:bg-[#FFEA00] text-black font-bold rounded-lg transition-colors"
               >
                 New Game
               </button>
             ) : (
-              <div className="py-4 text-center text-[#b0b0c0]">
+              <div className="py-4 text-center text-[#b0b0b0]">
                 Dealer is playing...
               </div>
             )}
 
             {/* Balance Display */}
-            <div className="mt-4 p-3 bg-[#0a0a0f] rounded-lg">
+            <div className="mt-4 p-3 bg-[#0a0a0a] rounded-lg">
               <div className="flex justify-between text-sm">
-                <span className="text-[#b0b0c0]">Balance</span>
+                <span className="text-[#b0b0b0]">Balance</span>
                 <span className="text-white font-bold">{formatCurrency(balance)}</span>
               </div>
             </div>
           </div>
 
           {/* Rules Card */}
-          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
             <h3 className="text-sm font-medium text-white mb-3">Rules</h3>
-            <ul className="space-y-2 text-xs text-[#b0b0c0]">
+            <ul className="space-y-2 text-xs text-[#b0b0b0]">
               <li>• Get closer to 21 than the dealer without busting</li>
               <li>• Blackjack (21 with 2 cards) pays 3:2</li>
               <li>• Dealer stands on 17</li>
@@ -425,15 +451,15 @@ export default function BlackjackPage() {
 
         {/* RIGHT: Game Table */}
         <div className="lg:col-span-2">
-          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-6 min-h-[500px]">
+          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6 min-h-[500px]">
             {/* Game Result Message */}
             {message && (
               <div className={`mb-6 p-4 rounded-lg text-center font-bold ${
                 result === "win" || result === "blackjack"
-                  ? "bg-[#39ff14]/20 text-[#39ff14]"
+                  ? "bg-[#FFD700]/20 text-[#FFD700]"
                   : result === "lose"
-                  ? "bg-[#ff4444]/20 text-[#ff4444]"
-                  : "bg-[#ffc107]/20 text-[#ffc107]"
+                  ? "bg-[#DC2626]/20 text-[#DC2626]"
+                  : "bg-[#FFD700]/20 text-[#FFD700]"
               }`}>
                 {message}
               </div>
@@ -442,7 +468,7 @@ export default function BlackjackPage() {
             {/* Dealer Section */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-[#b0b0c0]">Dealer</h3>
+                <h3 className="text-sm font-medium text-[#b0b0b0]">Dealer</h3>
                 <span className="text-lg font-bold text-white">
                   {gameState === "ended" || gameState === "dealer-turn"
                     ? dealerTotal
@@ -453,13 +479,13 @@ export default function BlackjackPage() {
               </div>
               <div className="flex gap-2 flex-wrap min-h-[112px]">
                 {dealerHand.length === 0 ? (
-                  <div className="w-20 h-28 rounded-lg border-2 border-dashed border-[#2a2a3e] flex items-center justify-center">
-                    <span className="text-[#666680] text-xs">Dealer</span>
+                  <div className="w-20 h-28 rounded-lg border-2 border-dashed border-[#2a2a2a] flex items-center justify-center">
+                    <span className="text-[#666666] text-xs">Dealer</span>
                   </div>
                 ) : (
                   dealerHand.map((card, i) => (
                     <CardComponent
-                      key={i}
+                      key={card.id}
                       card={card}
                       hidden={i === 1 && gameState === "playing"}
                     />
@@ -469,26 +495,26 @@ export default function BlackjackPage() {
             </div>
 
             {/* Divider */}
-            <div className="border-t border-[#2a2a3e] my-6" />
+            <div className="border-t border-[#2a2a2a] my-6" />
 
             {/* Player Section */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-[#b0b0c0]">Your Hand</h3>
+                <h3 className="text-sm font-medium text-[#b0b0b0]">Your Hand</h3>
                 <span className={`text-lg font-bold ${
-                  playerTotal > 21 ? "text-[#ff4444]" : playerTotal === 21 ? "text-[#39ff14]" : "text-white"
+                  playerTotal > 21 ? "text-[#DC2626]" : playerTotal === 21 ? "text-[#FFD700]" : "text-white"
                 }`}>
                   {playerHand.length > 0 ? playerTotal : "-"}
                 </span>
               </div>
               <div className="flex gap-2 flex-wrap min-h-[112px]">
                 {playerHand.length === 0 ? (
-                  <div className="w-20 h-28 rounded-lg border-2 border-dashed border-[#2a2a3e] flex items-center justify-center">
-                    <span className="text-[#666680] text-xs">You</span>
+                  <div className="w-20 h-28 rounded-lg border-2 border-dashed border-[#2a2a2a] flex items-center justify-center">
+                    <span className="text-[#666666] text-xs">You</span>
                   </div>
                 ) : (
                   playerHand.map((card, i) => (
-                    <CardComponent key={i} card={card} />
+                    <CardComponent key={card.id} card={card} />
                   ))
                 )}
               </div>
@@ -496,9 +522,9 @@ export default function BlackjackPage() {
 
             {/* Bet Info */}
             {gameState !== "betting" && (
-              <div className="mt-8 pt-4 border-t border-[#2a2a3e]">
+              <div className="mt-8 pt-4 border-t border-[#2a2a2a]">
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#b0b0c0]">Current Bet</span>
+                  <span className="text-[#b0b0b0]">Current Bet</span>
                   <span className="text-white font-bold">{formatCurrency(betAmount)}</span>
                 </div>
               </div>

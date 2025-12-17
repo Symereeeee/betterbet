@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const STORAGE_KEY = "betterbet_wallet";
+const STORAGE_KEY = "sixseven_wallet";
 const DEFAULT_BALANCE = 10000;
 
 export interface WalletState {
@@ -80,6 +80,13 @@ export function useWallet() {
     }));
   }, []);
 
+  const cashOut = useCallback((amount: number) => {
+    setWallet((prev) => ({
+      ...prev,
+      balance: Math.max(0, prev.balance - amount),
+    }));
+  }, []);
+
   return {
     ...wallet,
     isLoaded,
@@ -87,6 +94,7 @@ export function useWallet() {
     placeBet,
     resetWallet,
     addFunds,
+    cashOut,
   };
 }
 

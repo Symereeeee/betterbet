@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useWallet, formatCurrency } from "@/lib/useWallet";
+import { useSounds } from "@/lib/useSounds";
 import Link from "next/link";
 
 type TileState = "hidden" | "gem" | "mine";
@@ -26,6 +27,7 @@ const calculateMultiplier = (gemsRevealed: number, mineCount: number): number =>
 
 export default function MinesPage() {
   const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();
+  const { play } = useSounds();
   const [betAmount, setBetAmount] = useState(100);
   const [mineCount, setMineCount] = useState(3);
   const [grid, setGrid] = useState<TileState[]>(Array(GRID_SIZE).fill("hidden"));
@@ -44,6 +46,8 @@ export default function MinesPage() {
   const startGame = useCallback(() => {
     if (betAmount <= 0 || betAmount > balance) return;
 
+    play("click");
+
     // Generate random mine positions
     const positions: number[] = [];
     while (positions.length < mineCount) {
@@ -57,7 +61,7 @@ export default function MinesPage() {
     setGrid(Array(GRID_SIZE).fill("hidden"));
     setGemsRevealed(0);
     setGameState("playing");
-  }, [betAmount, balance, mineCount]);
+  }, [betAmount, balance, mineCount, play]);
 
   const revealTile = useCallback((index: number) => {
     if (gameState !== "playing" || grid[index] !== "hidden") return;
@@ -66,6 +70,7 @@ export default function MinesPage() {
 
     if (minePositions.includes(index)) {
       // Hit a mine - reveal all
+      play("explosion");
       minePositions.forEach(pos => {
         newGrid[pos] = "mine";
       });
@@ -75,6 +80,7 @@ export default function MinesPage() {
       walletPlaceBet(betAmount, false, 0);
     } else {
       // Found a gem
+      play("reveal");
       newGrid[index] = "gem";
       setGrid(newGrid);
       const newGemsRevealed = gemsRevealed + 1;
@@ -83,14 +89,17 @@ export default function MinesPage() {
       // Check if all gems found (win condition)
       if (newGemsRevealed === GRID_SIZE - mineCount) {
         setGameState("won");
+        setTimeout(() => play("bigWin"), 200);
         const winAmount = betAmount * calculateMultiplier(newGemsRevealed, mineCount);
         walletPlaceBet(betAmount, true, winAmount);
       }
     }
-  }, [gameState, grid, minePositions, gemsRevealed, betAmount, mineCount, walletPlaceBet]);
+  }, [gameState, grid, minePositions, gemsRevealed, betAmount, mineCount, walletPlaceBet, play]);
 
   const cashOut = useCallback(() => {
     if (gameState !== "playing" || gemsRevealed === 0) return;
+
+    play("cashout");
 
     const winAmount = betAmount * currentMultiplier;
     walletPlaceBet(betAmount, true, winAmount);
@@ -104,7 +113,7 @@ export default function MinesPage() {
     });
     setGrid(newGrid);
     setGameState("won");
-  }, [gameState, gemsRevealed, betAmount, currentMultiplier, grid, minePositions, walletPlaceBet]);
+  }, [gameState, gemsRevealed, betAmount, currentMultiplier, grid, minePositions, walletPlaceBet, play]);
 
   const resetGame = () => {
     setGrid(Array(GRID_SIZE).fill("hidden"));
@@ -116,7 +125,7 @@ export default function MinesPage() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-pulse text-[#b0b0c0]">Loading...</div>
+        <div className="animate-pulse text-[#b0b0b0]">Loading...</div>
       </div>
     );
   }
@@ -124,7 +133,7 @@ export default function MinesPage() {
   return (
     <div className="p-4 lg:p-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-[#666680] mb-6">
+      <div className="flex items-center gap-2 text-sm text-[#666666] mb-6">
         <Link href="/betterbet" className="hover:text-white transition-colors">
           Casino
         </Link>
@@ -135,14 +144,14 @@ export default function MinesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Betting Panel */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
             <h2 className="text-lg font-bold text-white mb-4">Mines</h2>
 
             {/* Bet Amount */}
             <div className="space-y-2 mb-4">
-              <label className="text-xs text-[#b0b0c0] font-medium">Bet Amount</label>
-              <div className="flex items-center bg-[#0a0a0f] rounded-lg border border-[#2a2a3e] overflow-hidden">
-                <span className="px-3 text-[#666680]">$</span>
+              <label className="text-xs text-[#b0b0b0] font-medium">Bet Amount</label>
+              <div className="flex items-center bg-[#0a0a0a] rounded-lg border border-[#2a2a2a] overflow-hidden">
+                <span className="px-3 text-[#666666]">$</span>
                 <input
                   type="number"
                   min={1}
@@ -151,18 +160,18 @@ export default function MinesPage() {
                   disabled={gameState !== "betting"}
                   className="flex-1 bg-transparent py-3 text-white outline-none disabled:opacity-50"
                 />
-                <div className="flex border-l border-[#2a2a3e]">
+                <div className="flex border-l border-[#2a2a2a]">
                   <button
                     onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))}
                     disabled={gameState !== "betting"}
-                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm disabled:opacity-50"
+                    className="px-3 py-3 text-[#b0b0b0] hover:text-white hover:bg-[#2a2a2a] transition-colors text-sm disabled:opacity-50"
                   >
                     ½
                   </button>
                   <button
                     onClick={() => setBetAmount((a) => Math.min(balance, a * 2))}
                     disabled={gameState !== "betting"}
-                    className="px-3 py-3 text-[#b0b0c0] hover:text-white hover:bg-[#2a2a3e] transition-colors text-sm border-l border-[#2a2a3e] disabled:opacity-50"
+                    className="px-3 py-3 text-[#b0b0b0] hover:text-white hover:bg-[#2a2a2a] transition-colors text-sm border-l border-[#2a2a2a] disabled:opacity-50"
                   >
                     2×
                   </button>
@@ -172,7 +181,7 @@ export default function MinesPage() {
 
             {/* Mine Count */}
             <div className="space-y-2 mb-4">
-              <label className="text-xs text-[#b0b0c0] font-medium">Mines</label>
+              <label className="text-xs text-[#b0b0b0] font-medium">Mines</label>
               <div className="grid grid-cols-5 gap-2">
                 {[1, 3, 5, 10, 15].map((count) => (
                   <button
@@ -181,8 +190,8 @@ export default function MinesPage() {
                     disabled={gameState !== "betting"}
                     className={`py-2 rounded-lg text-sm font-medium transition-all ${
                       mineCount === count
-                        ? "bg-[#39ff14] text-black"
-                        : "bg-[#0a0a0f] text-[#b0b0c0] hover:bg-[#2a2a3e] hover:text-white border border-[#2a2a3e] disabled:opacity-50"
+                        ? "bg-[#FFD700] text-black"
+                        : "bg-[#0a0a0a] text-[#b0b0b0] hover:bg-[#2a2a2a] hover:text-white border border-[#2a2a2a] disabled:opacity-50"
                     }`}
                   >
                     {count}
@@ -193,23 +202,23 @@ export default function MinesPage() {
 
             {/* Current Stats */}
             {gameState === "playing" && (
-              <div className="space-y-2 mb-4 p-3 bg-[#0a0a0f] rounded-lg">
+              <div className="space-y-2 mb-4 p-3 bg-[#0a0a0a] rounded-lg">
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#b0b0c0]">Gems Found</span>
-                  <span className="text-[#39ff14] font-bold">{gemsRevealed}</span>
+                  <span className="text-[#b0b0b0]">Gems Found</span>
+                  <span className="text-[#FFD700] font-bold">{gemsRevealed}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#b0b0c0]">Current Multiplier</span>
+                  <span className="text-[#b0b0b0]">Current Multiplier</span>
                   <span className="text-white font-bold">{currentMultiplier.toFixed(2)}x</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#b0b0c0]">Potential Win</span>
-                  <span className="text-[#39ff14] font-bold">
+                  <span className="text-[#b0b0b0]">Potential Win</span>
+                  <span className="text-[#FFD700] font-bold">
                     {formatCurrency(betAmount * currentMultiplier)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-[#b0b0c0]">Next Multiplier</span>
+                  <span className="text-[#b0b0b0]">Next Multiplier</span>
                   <span className="text-white">{nextMultiplier.toFixed(2)}x</span>
                 </div>
               </div>
@@ -220,7 +229,7 @@ export default function MinesPage() {
               <button
                 onClick={startGame}
                 disabled={betAmount <= 0 || betAmount > balance}
-                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] disabled:bg-[#2a2a3e] disabled:text-[#666680] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
+                className="w-full py-4 bg-[#FFD700] hover:bg-[#FFEA00] disabled:bg-[#2a2a2a] disabled:text-[#666666] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
               >
                 Start Game
               </button>
@@ -228,14 +237,14 @@ export default function MinesPage() {
               <button
                 onClick={cashOut}
                 disabled={gemsRevealed === 0}
-                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] disabled:bg-[#2a2a3e] disabled:text-[#666680] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
+                className="w-full py-4 bg-[#FFD700] hover:bg-[#FFEA00] disabled:bg-[#2a2a2a] disabled:text-[#666666] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
               >
                 Cash Out {formatCurrency(betAmount * currentMultiplier)}
               </button>
             ) : (
               <button
                 onClick={resetGame}
-                className="w-full py-4 bg-[#39ff14] hover:bg-[#7fff00] text-black font-bold rounded-lg transition-colors"
+                className="w-full py-4 bg-[#FFD700] hover:bg-[#FFEA00] text-black font-bold rounded-lg transition-colors"
               >
                 New Game
               </button>
@@ -243,31 +252,31 @@ export default function MinesPage() {
 
             {/* Result Message */}
             {gameState === "won" && (
-              <div className="mt-4 p-3 bg-[#39ff14]/20 border border-[#39ff14]/30 rounded-lg text-center">
-                <p className="text-[#39ff14] font-bold">
+              <div className="mt-4 p-3 bg-[#FFD700]/20 border border-[#FFD700]/30 rounded-lg text-center">
+                <p className="text-[#FFD700] font-bold">
                   You won {formatCurrency(betAmount * currentMultiplier)}!
                 </p>
               </div>
             )}
             {gameState === "lost" && (
-              <div className="mt-4 p-3 bg-[#ff4444]/20 border border-[#ff4444]/30 rounded-lg text-center">
-                <p className="text-[#ff4444] font-bold">You hit a mine!</p>
+              <div className="mt-4 p-3 bg-[#DC2626]/20 border border-[#DC2626]/30 rounded-lg text-center">
+                <p className="text-[#DC2626] font-bold">You hit a mine!</p>
               </div>
             )}
 
             {/* Balance Display */}
-            <div className="mt-4 p-3 bg-[#0a0a0f] rounded-lg">
+            <div className="mt-4 p-3 bg-[#0a0a0a] rounded-lg">
               <div className="flex justify-between text-sm">
-                <span className="text-[#b0b0c0]">Balance</span>
+                <span className="text-[#b0b0b0]">Balance</span>
                 <span className="text-white font-bold">{formatCurrency(balance)}</span>
               </div>
             </div>
           </div>
 
           {/* How to Play */}
-          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-4">
+          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
             <h3 className="text-sm font-medium text-white mb-3">How to Play</h3>
-            <ul className="space-y-2 text-xs text-[#b0b0c0]">
+            <ul className="space-y-2 text-xs text-[#b0b0b0]">
               <li>• Click tiles to reveal gems or mines</li>
               <li>• Each gem increases your multiplier</li>
               <li>• Cash out anytime to secure your winnings</li>
@@ -278,7 +287,7 @@ export default function MinesPage() {
 
         {/* RIGHT: Game Grid */}
         <div className="lg:col-span-2">
-          <div className="bg-[#12121a] rounded-xl border border-[#2a2a3e] p-6">
+          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
             <div className="grid grid-cols-5 gap-2 max-w-md mx-auto">
               {grid.map((tile, index) => (
                 <button
@@ -288,11 +297,11 @@ export default function MinesPage() {
                   className={`aspect-square rounded-lg flex items-center justify-center text-2xl sm:text-3xl transition-all duration-200 ${
                     tile === "hidden"
                       ? gameState === "playing"
-                        ? "bg-[#2a2a3e] hover:bg-[#3d5a6c] cursor-pointer hover:scale-105"
-                        : "bg-[#2a2a3e] cursor-not-allowed"
+                        ? "bg-[#2a2a2a] hover:bg-[#3a3a3a] cursor-pointer hover:scale-105"
+                        : "bg-[#2a2a2a] cursor-not-allowed"
                       : tile === "gem"
-                      ? "bg-[#39ff14]/20 border-2 border-[#39ff14]"
-                      : "bg-[#ff4444]/20 border-2 border-[#ff4444]"
+                      ? "bg-[#FFD700]/20 border-2 border-[#FFD700]"
+                      : "bg-[#DC2626]/20 border-2 border-[#DC2626]"
                   }`}
                 >
                   {tile === "gem" && "💎"}
@@ -304,15 +313,15 @@ export default function MinesPage() {
             {/* Game Info */}
             <div className="mt-6 grid grid-cols-3 gap-4 text-center">
               <div>
-                <p className="text-xs text-[#666680] mb-1">Mines</p>
-                <p className="text-xl font-bold text-[#ff4444]">{mineCount}</p>
+                <p className="text-xs text-[#666666] mb-1">Mines</p>
+                <p className="text-xl font-bold text-[#DC2626]">{mineCount}</p>
               </div>
               <div>
-                <p className="text-xs text-[#666680] mb-1">Gems</p>
-                <p className="text-xl font-bold text-[#39ff14]">{GRID_SIZE - mineCount}</p>
+                <p className="text-xs text-[#666666] mb-1">Gems</p>
+                <p className="text-xl font-bold text-[#FFD700]">{GRID_SIZE - mineCount}</p>
               </div>
               <div>
-                <p className="text-xs text-[#666680] mb-1">Revealed</p>
+                <p className="text-xs text-[#666666] mb-1">Revealed</p>
                 <p className="text-xl font-bold text-white">{gemsRevealed}</p>
               </div>
             </div>
@@ -320,13 +329,13 @@ export default function MinesPage() {
             {/* Multiplier Progress */}
             {gameState === "playing" && (
               <div className="mt-6">
-                <div className="flex justify-between text-xs text-[#b0b0c0] mb-2">
+                <div className="flex justify-between text-xs text-[#b0b0b0] mb-2">
                   <span>Progress</span>
                   <span>{gemsRevealed} / {GRID_SIZE - mineCount} gems</span>
                 </div>
-                <div className="h-2 bg-[#0a0a0f] rounded-full overflow-hidden">
+                <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#39ff14] to-[#7fff00] transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-[#DC2626] to-[#FFD700] transition-all duration-300"
                     style={{ width: `${(gemsRevealed / (GRID_SIZE - mineCount)) * 100}%` }}
                   />
                 </div>

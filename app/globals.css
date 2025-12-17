@@ -2,37 +2,35 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0f;
-  --background-secondary: #12121a;
-  --background-tertiary: #1a1a2e;
+  --background: #0a0a0a;
+  --background-secondary: #141414;
+  --background-tertiary: #1a1a1a;
   --foreground: #e0e0e0;
   --foreground-bright: #ffffff;
-  --accent-primary: #8b5cf6;
-  --accent-primary-hover: #a78bfa;
-  --accent-secondary: #f97316;
-  --accent-secondary-hover: #fb923c;
-  --accent-tertiary: #39ff14;
-  --accent-tertiary-hover: #7fff00;
-  --danger: #ff4444;
-  --warning: #ffc107;
-  --border: #2a2a3e;
+  --accent-primary: #FFD700;
+  --accent-primary-hover: #FFC000;
+  --accent-secondary: #DC2626;
+  --accent-secondary-hover: #EF4444;
+  --accent-tertiary: #FFD700;
+  --accent-tertiary-hover: #FFEA00;
+  --danger: #DC2626;
+  --warning: #FFD700;
+  --border: #2a2a2a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-bb-dark: #0a0a0f;
-  --color-bb-darker: #050508;
-  --color-bb-card: #12121a;
-  --color-bb-hover: #1a1a2e;
-  --color-bb-border: #2a2a3e;
-  --color-bb-purple: #8b5cf6;
-  --color-bb-purple-hover: #a78bfa;
-  --color-bb-orange: #f97316;
-  --color-bb-orange-hover: #fb923c;
-  --color-bb-neon: #39ff14;
-  --color-bb-neon-hover: #7fff00;
-  --color-bb-text: #b0b0c0;
+  --color-bb-dark: #0a0a0a;
+  --color-bb-darker: #050505;
+  --color-bb-card: #141414;
+  --color-bb-hover: #1a1a1a;
+  --color-bb-border: #2a2a2a;
+  --color-bb-gold: #FFD700;
+  --color-bb-gold-hover: #FFC000;
+  --color-bb-red: #DC2626;
+  --color-bb-red-hover: #EF4444;
+  --color-bb-text: #b0b0b0;
   --color-bb-text-bright: #ffffff;
 }
 
@@ -68,14 +66,14 @@ body {
 }
 
 /* Game animations */
-@keyframes pulse-neon {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0.4); }
-  50% { box-shadow: 0 0 20px 10px rgba(57, 255, 20, 0.1); }
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
+  50% { box-shadow: 0 0 20px 10px rgba(255, 215, 0, 0.1); }
 }
 
-@keyframes pulse-purple {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
-  50% { box-shadow: 0 0 20px 10px rgba(139, 92, 246, 0.2); }
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 20px 10px rgba(220, 38, 38, 0.2); }
 }
 
 @keyframes float {
@@ -92,16 +90,62 @@ body {
 }
 
 @keyframes glow {
-  0%, 100% { filter: drop-shadow(0 0 5px var(--accent-tertiary)); }
-  50% { filter: drop-shadow(0 0 20px var(--accent-tertiary)); }
+  0%, 100% { filter: drop-shadow(0 0 5px var(--accent-primary)); }
+  50% { filter: drop-shadow(0 0 20px var(--accent-primary)); }
 }
 
-.animate-pulse-neon {
-  animation: pulse-neon 2s ease-in-out infinite;
+@keyframes ball-drop {
+  0% { transform: translateY(-20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
-.animate-pulse-purple {
-  animation: pulse-purple 2s ease-in-out infinite;
+@keyframes dealCard {
+  0% {
+    transform: translateX(100px) translateY(-50px) rotate(20deg);
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(20px) translateY(-10px) rotate(5deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(0) translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes cardFlip {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(90deg); }
+  100% { transform: rotateY(0deg); }
+}
+
+@keyframes cardWin {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes cardSlideIn {
+  0% {
+    transform: translateX(200%) scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: translateX(-5%) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+.animate-pulse-red {
+  animation: pulse-red 2s ease-in-out infinite;
 }
 
 .animate-float {
@@ -116,24 +160,32 @@ body {
   animation: glow 2s ease-in-out infinite;
 }
 
+.animate-ball-drop {
+  animation: ball-drop 0.3s ease-out;
+}
+
+.animate-deal-card {
+  animation: dealCard 0.3s ease-out;
+}
+
 /* Glass effect */
 .glass {
-  background: rgba(18, 18, 26, 0.8);
+  background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(42, 42, 62, 0.5);
+  border: 1px solid rgba(42, 42, 42, 0.5);
 }
 
 /* Gradient backgrounds */
-.gradient-purple-orange {
-  background: linear-gradient(135deg, #8b5cf6 0%, #f97316 100%);
+.gradient-red-gold {
+  background: linear-gradient(135deg, #DC2626 0%, #FFD700 100%);
 }
 
-.gradient-neon {
-  background: linear-gradient(135deg, #39ff14 0%, #00ff88 100%);
+.gradient-gold {
+  background: linear-gradient(135deg, #FFD700 0%, #FFC000 100%);
 }
 
 .gradient-dark {
-  background: linear-gradient(135deg, #12121a 0%, #0a0a0f 100%);
+  background: linear-gradient(135deg, #141414 0%, #0a0a0a 100%);
 }
 
 /* Number input hide arrows */
@@ -147,7 +199,7 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Neon text effect */
-.neon-text {
-  text-shadow: 0 0 10px var(--accent-tertiary), 0 0 20px var(--accent-tertiary), 0 0 30px var(--accent-tertiary);
+/* Gold text effect */
+.gold-text {
+  text-shadow: 0 0 10px var(--accent-primary), 0 0 20px var(--accent-primary), 0 0 30px var(--accent-primary);
 }

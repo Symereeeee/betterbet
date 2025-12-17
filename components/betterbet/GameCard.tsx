@@ -21,7 +21,7 @@ export default function GameCard({
   description,
   tag,
   comingSoon = false,
-  gradient = "from-[#8b5cf6] to-[#f97316]",
+  gradient = "from-[#DC2626] to-[#FFD700]",
   houseEdge,
 }: GameCardProps) {
   const Wrapper = comingSoon ? "div" : Link;
@@ -29,10 +29,10 @@ export default function GameCard({
   return (
     <Wrapper
       href={comingSoon ? "#" : href}
-      className={`group relative overflow-hidden rounded-xl bg-[#12121a] border border-[#2a2a3e] transition-all duration-300 ${
+      className={`group relative overflow-hidden rounded-xl bg-[#141414] border border-[#2a2a2a] transition-all duration-300 ${
         comingSoon
           ? "opacity-60 cursor-not-allowed"
-          : "hover:border-[#8b5cf6]/50 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1"
+          : "hover:border-[#FFD700]/50 hover:shadow-lg hover:shadow-yellow-500/10 hover:-translate-y-1"
       }`}
     >
       {/* Gradient header */}
@@ -62,16 +62,16 @@ export default function GameCard({
       {/* Content */}
       <div className="p-4">
         <h3 className="text-lg font-bold text-white mb-1">{name}</h3>
-        <p className="text-sm text-[#b0b0c0] mb-3">{description}</p>
+        <p className="text-sm text-[#b0b0b0] mb-3">{description}</p>
 
         <div className="flex items-center justify-between">
           {houseEdge && (
-            <span className="text-xs text-[#666680]">
+            <span className="text-xs text-[#666666]">
               House Edge: {houseEdge}
             </span>
           )}
           {!comingSoon && (
-            <span className="text-sm text-[#8b5cf6] font-medium group-hover:text-[#a78bfa] group-hover:translate-x-1 transition-all">
+            <span className="text-sm text-[#FFD700] font-medium group-hover:text-[#FFEA00] group-hover:translate-x-1 transition-all">
               Play Now →
             </span>
           )}
