@@ -18,27 +18,24 @@ export function useSounds() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Initialize AudioContext on first user interaction
-  useEffect(() => {
-    const initAudio = () => {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-    };
+  // Helper to get or create AudioContext
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    // Resume if suspended (required by some browsers after user interaction)
+    if (audioContextRef.current.state === "suspended") {
+      audioContextRef.current.resume();
+    }
+    return audioContextRef.current;
+  }, []);
 
-    // Load muted preference
+  // Load muted preference on mount
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const savedMute = localStorage.getItem("betterbet_muted");
       setIsMuted(savedMute === "true");
     }
-
-    window.addEventListener("click", initAudio, { once: true });
-    window.addEventListener("keydown", initAudio, { once: true });
-
-    return () => {
-      window.removeEventListener("click", initAudio);
-      window.removeEventListener("keydown", initAudio);
-    };
   }, []);
 
   // Save mute preference
@@ -55,9 +52,9 @@ export function useSounds() {
     volume: number = 0.3,
     decay: boolean = true
   ) => {
-    if (isMuted || !audioContextRef.current) return;
+    if (isMuted) return;
 
-    const ctx = audioContextRef.current;
+    const ctx = getAudioContext();
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -74,12 +71,12 @@ export function useSounds() {
 
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + duration);
-  }, [isMuted]);
+  }, [isMuted, getAudioContext]);
 
   const playNoise = useCallback((duration: number, volume: number = 0.1) => {
-    if (isMuted || !audioContextRef.current) return;
+    if (isMuted) return;
 
-    const ctx = audioContextRef.current;
+    const ctx = getAudioContext();
     const bufferSize = ctx.sampleRate * duration;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -105,7 +102,7 @@ export function useSounds() {
 
     noise.start(ctx.currentTime);
     noise.stop(ctx.currentTime + duration);
-  }, [isMuted]);
+  }, [isMuted, getAudioContext]);
 
   const play = useCallback((sound: SoundType) => {
     if (isMuted) return;

@@ -21,49 +21,47 @@ export default function Header({ balance, onCashIn, onCashOut, isMuted, onToggle
   return (
     <>
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur border-b border-[#2a2a2a]">
-        <div className="flex items-center justify-between h-16 px-4">
+        <div className="flex items-center justify-between h-14 sm:h-16 px-2 sm:px-4">
           {/* Mobile menu button */}
           <button
             onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="lg:hidden p-2 text-[#b0b0b0] hover:text-white"
+            className="lg:hidden p-1.5 sm:p-2 text-[#b0b0b0] hover:text-white flex-shrink-0"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
           {/* Logo (mobile only) */}
-          <Link href="/betterbet" className="lg:hidden flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#DC2626] to-[#FFD700] flex items-center justify-center text-sm font-bold text-white">
-              67
-            </div>
-            <span className="text-lg font-bold text-white">SixSeven.bet</span>
+          <Link href="/betterbet" className="lg:hidden flex-shrink-0">
+            <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-[#DC2626] to-[#FFD700] bg-clip-text text-transparent">SixSeven.bet</span>
           </Link>
 
           {/* Spacer for desktop */}
           <div className="hidden lg:block" />
 
           {/* Right side - Wallet */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
             {/* Balance display & Top-Up button */}
-            <div className="flex items-center gap-2">
-              <div className="bg-[#141414] border border-[#2a2a2a] rounded-lg px-4 py-2">
-                <span className="text-[#FFD700] font-bold" style={{ textShadow: '0 0 10px rgba(255, 215, 0, 0.5)' }}>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="bg-[#141414] border border-[#2a2a2a] rounded-lg px-2 sm:px-4 py-1.5 sm:py-2">
+                <span className="text-[#FFD700] font-bold text-sm sm:text-base" style={{ textShadow: '0 0 10px rgba(255, 215, 0, 0.5)' }}>
                   {formatCurrency(balance)}
                 </span>
               </div>
               <button
                 onClick={() => setShowWalletModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-[#DC2626] to-[#B91C1C] hover:from-[#EF4444] hover:to-[#DC2626] text-white font-semibold rounded-lg transition-all shadow-lg shadow-red-500/20"
+                className="px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#DC2626] to-[#B91C1C] hover:from-[#EF4444] hover:to-[#DC2626] text-white font-semibold text-sm sm:text-base rounded-lg transition-all shadow-lg shadow-red-500/20"
               >
-                Wallet
+                <span className="hidden sm:inline">Wallet</span>
+                <span className="sm:hidden">+</span>
               </button>
             </div>
 
-            {/* Sound toggle */}
+            {/* Sound toggle - hide on very small screens */}
             <button
               onClick={onToggleMute}
-              className="p-2 rounded-lg bg-[#141414] hover:bg-[#1a1a1a] border border-[#2a2a2a] text-[#b0b0b0] hover:text-white transition-colors"
+              className="hidden sm:block p-2 rounded-lg bg-[#141414] hover:bg-[#1a1a1a] border border-[#2a2a2a] text-[#b0b0b0] hover:text-white transition-colors"
               title={isMuted ? "Unmute sounds" : "Mute sounds"}
             >
               {isMuted ? (
@@ -78,8 +76,8 @@ export default function Header({ balance, onCashIn, onCashOut, isMuted, onToggle
               )}
             </button>
 
-            {/* User avatar */}
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#DC2626] to-[#FFD700] flex items-center justify-center text-white font-bold">
+            {/* User avatar - smaller on mobile */}
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#DC2626] to-[#FFD700] flex items-center justify-center text-white font-bold text-sm sm:text-base">
               D
             </div>
           </div>

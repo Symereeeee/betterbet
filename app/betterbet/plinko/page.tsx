@@ -20,53 +20,52 @@ interface Ball {
   betAmount: number;
 }
 
-// Multipliers based on risk level (for 8 rows = 9 slots)
-const MULTIPLIERS: Record<RiskLevel, number[]> = {
-  low: [1.5, 1.2, 1.1, 1.0, 0.5, 1.0, 1.1, 1.2, 1.5],
-  medium: [3, 1.5, 1.2, 0.8, 0.4, 0.8, 1.2, 1.5, 3],
-  high: [10, 3, 1.5, 0.5, 0.2, 0.5, 1.5, 3, 10],
+// Multipliers based on risk level and rows (harder - house always wins)
+const getMultipliers = (rows: number, risk: RiskLevel): number[] => {
+  const multiplierSets: Record<number, Record<RiskLevel, number[]>> = {
+    8: {
+      low: [1.2, 0.9, 0.7, 0.5, 0.3, 0.5, 0.7, 0.9, 1.2],
+      medium: [2, 1.1, 0.7, 0.4, 0.2, 0.4, 0.7, 1.1, 2],
+      high: [6, 2, 0.9, 0.3, 0.1, 0.3, 0.9, 2, 6],
+    },
+    10: {
+      low: [1.3, 1.0, 0.8, 0.6, 0.4, 0.3, 0.4, 0.6, 0.8, 1.0, 1.3],
+      medium: [3, 1.5, 0.9, 0.6, 0.4, 0.2, 0.4, 0.6, 0.9, 1.5, 3],
+      high: [14, 3, 1.8, 0.8, 0.3, 0.1, 0.3, 0.8, 1.8, 3, 14],
+    },
+    12: {
+      low: [1.3, 1.1, 0.9, 0.7, 0.5, 0.4, 0.3, 0.4, 0.5, 0.7, 0.9, 1.1, 1.3],
+      medium: [3.5, 2, 1.3, 0.9, 0.6, 0.4, 0.2, 0.4, 0.6, 0.9, 1.3, 2, 3.5],
+      high: [20, 7, 2.5, 1.2, 0.6, 0.3, 0.1, 0.3, 0.6, 1.2, 2.5, 7, 20],
+    },
+    14: {
+      low: [1.4, 1.2, 1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.4],
+      medium: [4.5, 2.5, 1.6, 1.1, 0.8, 0.5, 0.3, 0.2, 0.3, 0.5, 0.8, 1.1, 1.6, 2.5, 4.5],
+      high: [35, 11, 4, 2, 0.9, 0.4, 0.2, 0.1, 0.2, 0.4, 0.9, 2, 4, 11, 35],
+    },
+    16: {
+      low: [1.4, 1.3, 1.1, 0.9, 0.8, 0.6, 0.5, 0.4, 0.3, 0.4, 0.5, 0.6, 0.8, 0.9, 1.1, 1.3, 1.4],
+      medium: [6, 3, 2, 1.3, 0.9, 0.7, 0.5, 0.3, 0.2, 0.3, 0.5, 0.7, 0.9, 1.3, 2, 3, 6],
+      high: [70, 20, 7, 3, 1.3, 0.6, 0.3, 0.2, 0.1, 0.2, 0.3, 0.6, 1.3, 3, 7, 20, 70],
+    },
+  };
+  return multiplierSets[rows]?.[risk] || multiplierSets[12][risk];
 };
 
-const ROWS = 8;
-const PINS_START = 3;
-const GRAVITY = 0.4;
-const BOUNCE = 0.7;
-const FRICTION = 0.99;
-
-// Board dimensions in SVG viewBox units
+const GRAVITY = 0.25;
+const BOUNCE = 0.6;
+const FRICTION = 0.995;
 const BOARD_WIDTH = 100;
 const BOARD_HEIGHT = 100;
-const PIN_RADIUS = 1.5;
-const BALL_RADIUS = 2.5;
-
-// Calculate pin positions
-const getPinPositions = () => {
-  const pins: { x: number; y: number; row: number }[] = [];
-  for (let row = 0; row < ROWS; row++) {
-    const pinsInRow = PINS_START + row;
-    const rowY = 15 + (row * 60) / ROWS;
-    const totalWidth = 70;
-    const spacing = totalWidth / (pinsInRow - 1 || 1);
-    const startX = (BOARD_WIDTH - totalWidth) / 2;
-
-    for (let pin = 0; pin < pinsInRow; pin++) {
-      pins.push({
-        x: startX + pin * spacing,
-        y: rowY,
-        row,
-      });
-    }
-  }
-  return pins;
-};
-
-const PIN_POSITIONS = getPinPositions();
+const PIN_RADIUS = 0.8;
+const BALL_RADIUS = 1.4;
 
 export default function PlinkoPage() {
   const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();
   const { play } = useSounds();
   const [betAmount, setBetAmount] = useState(10);
-  const [risk, setRisk] = useState<RiskLevel>("high");
+  const [rows, setRows] = useState(12);
+  const [risk, setRisk] = useState<RiskLevel>("medium");
   const [balls, setBalls] = useState<Ball[]>([]);
   const [history, setHistory] = useState<{ multiplier: number; win: number; bet: number }[]>([]);
   const [activeBets, setActiveBets] = useState(0);
@@ -74,34 +73,47 @@ export default function PlinkoPage() {
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
 
-  const multipliers = MULTIPLIERS[risk];
+  const multipliers = getMultipliers(rows, risk);
+  const numSlots = rows + 1;
+
+  // Calculate pin positions based on rows
+  const getPinPositions = useCallback(() => {
+    const pins: { x: number; y: number; row: number }[] = [];
+    const PINS_START = 3;
+    for (let row = 0; row < rows; row++) {
+      const pinsInRow = PINS_START + row;
+      const rowY = 15 + (row * 60) / rows;
+      const totalWidth = 70;
+      const spacing = totalWidth / (pinsInRow - 1 || 1);
+      const startX = (BOARD_WIDTH - totalWidth) / 2;
+
+      for (let pin = 0; pin < pinsInRow; pin++) {
+        pins.push({ x: startX + pin * spacing, y: rowY, row });
+      }
+    }
+    return pins;
+  }, [rows]);
+
+  const pinPositions = getPinPositions();
 
   // Physics simulation
   useEffect(() => {
     const animate = (timestamp: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = timestamp;
-      const deltaTime = Math.min((timestamp - lastTimeRef.current) / 16, 2); // Cap at 2x speed
+      const deltaTime = Math.min((timestamp - lastTimeRef.current) / 16, 2);
       lastTimeRef.current = timestamp;
 
       setBalls((prevBalls) => {
-        let updated = false;
         const newBalls = prevBalls.map((ball) => {
           if (ball.done) return ball;
-          updated = true;
 
           let { x, y, vx, vy, row } = ball;
 
-          // Apply gravity
           vy += GRAVITY * deltaTime;
-
-          // Apply velocity
           x += vx * deltaTime;
           y += vy * deltaTime;
-
-          // Apply friction
           vx *= FRICTION;
 
-          // Wall collisions
           if (x < BALL_RADIUS + 5) {
             x = BALL_RADIUS + 5;
             vx = Math.abs(vx) * BOUNCE;
@@ -111,45 +123,38 @@ export default function PlinkoPage() {
             vx = -Math.abs(vx) * BOUNCE;
           }
 
-          // Pin collisions
-          for (const pin of PIN_POSITIONS) {
+          for (const pin of pinPositions) {
             const dx = x - pin.x;
             const dy = y - pin.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             const minDist = PIN_RADIUS + BALL_RADIUS;
 
             if (dist < minDist && dist > 0) {
-              // Collision detected
               const overlap = minDist - dist;
               const nx = dx / dist;
               const ny = dy / dist;
 
-              // Push ball out
               x += nx * overlap;
               y += ny * overlap;
 
-              // Reflect velocity
               const dotProduct = vx * nx + vy * ny;
               vx = (vx - 2 * dotProduct * nx) * BOUNCE;
               vy = (vy - 2 * dotProduct * ny) * BOUNCE;
+              // Add randomness with slight bias toward center (where house edge is)
+              const centerBias = (BOARD_WIDTH / 2 - x) * 0.02;
+              vx += (Math.random() - 0.5) * 1.2 + centerBias;
 
-              // Add randomness for natural bouncing
-              vx += (Math.random() - 0.5) * 1.5;
-
-              // Track row progression
-              if (pin.row > row) {
-                row = pin.row;
-              }
+              if (pin.row > row) row = pin.row;
             }
           }
 
-          // Check if ball reached bottom
           if (y >= 82) {
-            // Calculate which slot the ball landed in
-            const slotWidth = 70 / 9;
+            // Calculate slot more accurately - use the center of the ball position
+            const slotWidth = 70 / numSlots;
             const startX = (BOARD_WIDTH - 70) / 2;
-            let slot = Math.floor((x - startX) / slotWidth);
-            slot = Math.max(0, Math.min(8, slot));
+            // Use round instead of floor for better accuracy at boundaries
+            let slot = Math.round((x - startX - slotWidth / 2) / slotWidth);
+            slot = Math.max(0, Math.min(numSlots - 1, slot));
 
             return { ...ball, x, y: 82, vx: 0, vy: 0, row, finalSlot: slot, done: true };
           }
@@ -164,13 +169,10 @@ export default function PlinkoPage() {
     };
 
     animationRef.current = requestAnimationFrame(animate);
-
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, []);
+  }, [pinPositions, numSlots]);
 
   // Handle ball completion
   useEffect(() => {
@@ -180,17 +182,14 @@ export default function PlinkoPage() {
         const winAmount = ball.betAmount * multiplier;
         const won = multiplier >= 1;
 
-        // Play sound
         if (won) {
           play(multiplier >= 3 ? "bigWin" : "win");
         } else {
           play("lose");
         }
 
-        // Process bet
         walletPlaceBet(ball.betAmount, won, winAmount);
 
-        // Add to history
         setHistory((prev) => [
           { multiplier, win: winAmount, bet: ball.betAmount },
           ...prev,
@@ -198,12 +197,10 @@ export default function PlinkoPage() {
 
         setActiveBets((prev) => Math.max(0, prev - 1));
 
-        // Remove ball after delay
         setTimeout(() => {
           setBalls((prev) => prev.filter((b) => b.id !== ball.id));
         }, 1500);
 
-        // Mark as processed by setting finalSlot to null
         setBalls((prev) =>
           prev.map((b) =>
             b.id === ball.id ? { ...b, finalSlot: null } : b
@@ -213,7 +210,6 @@ export default function PlinkoPage() {
     });
   }, [balls, multipliers, walletPlaceBet, play]);
 
-  // Drop a ball
   const dropBall = useCallback(() => {
     if (betAmount <= 0 || betAmount > balance) return;
 
@@ -222,7 +218,7 @@ export default function PlinkoPage() {
 
     const newBall: Ball = {
       id: ballIdRef.current++,
-      x: BOARD_WIDTH / 2 + (Math.random() - 0.5) * 4, // Slight random start position
+      x: BOARD_WIDTH / 2 + (Math.random() - 0.5) * 4,
       y: 5,
       vx: (Math.random() - 0.5) * 2,
       vy: 0,
@@ -235,16 +231,13 @@ export default function PlinkoPage() {
     setBalls((prev) => [...prev, newBall]);
   }, [betAmount, balance, play]);
 
-  // Auto-drop for rapid betting
   const dropIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const startAutoDrop = useCallback(() => {
     if (dropIntervalRef.current) return;
     dropBall();
     dropIntervalRef.current = setInterval(() => {
-      if (betAmount <= balance) {
-        dropBall();
-      }
+      if (betAmount <= balance) dropBall();
     }, 200);
   }, [dropBall, betAmount, balance]);
 
@@ -257,31 +250,16 @@ export default function PlinkoPage() {
 
   useEffect(() => {
     return () => {
-      if (dropIntervalRef.current) {
-        clearInterval(dropIntervalRef.current);
-      }
+      if (dropIntervalRef.current) clearInterval(dropIntervalRef.current);
     };
   }, []);
 
   const getMultiplierColor = (mult: number) => {
-    if (mult >= 3) return "bg-[#DC2626] text-white";
-    if (mult >= 1.5) return "bg-[#FFD700] text-black";
-    if (mult >= 1) return "bg-[#2a2a2a] text-white";
-    return "bg-[#1a1a1a] text-[#666666]";
-  };
-
-  const getSlotHighlight = (index: number) => {
-    const recentSlots = balls.filter(b => b.done && b.finalSlot === null).length === 0
-      ? []
-      : balls.filter(b => b.done).map(b => {
-          const slotWidth = 70 / 9;
-          const startX = (BOARD_WIDTH - 70) / 2;
-          return Math.floor((b.x - startX) / slotWidth);
-        });
-
-    const hitCount = recentSlots.filter(s => s === index).length;
-    if (hitCount > 0) return "ring-2 ring-white scale-105";
-    return "";
+    if (mult >= 10) return "bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-white";
+    if (mult >= 3) return "bg-gradient-to-b from-[#f97316] to-[#ea580c] text-white";
+    if (mult >= 1.5) return "bg-gradient-to-b from-[#eab308] to-[#ca8a04] text-black";
+    if (mult >= 1) return "bg-gradient-to-b from-[#fbbf24] to-[#f59e0b] text-black";
+    return "bg-gradient-to-b from-[#facc15] to-[#eab308] text-black";
   };
 
   if (!isLoaded) {
@@ -293,145 +271,162 @@ export default function PlinkoPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-[#666666] mb-6">
-        <Link href="/betterbet" className="hover:text-white transition-colors">
-          Casino
-        </Link>
+      <div className="flex items-center gap-2 text-sm text-[#666666] mb-4 lg:mb-6">
+        <Link href="/betterbet" className="hover:text-white transition-colors">Casino</Link>
         <span>/</span>
         <span className="text-white">Plinko</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Mobile Layout */}
+      <div className="lg:hidden space-y-4">
+        {/* Game Board */}
+        <div className="bg-[#1a1a2e] rounded-xl p-4">
+          <div className="relative w-full aspect-[4/5] bg-gradient-to-b from-[#0f0f1a] to-[#1a1a2e] rounded-xl overflow-hidden">
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+              {pinPositions.map((pin, i) => (
+                <circle key={i} cx={pin.x} cy={pin.y} r={PIN_RADIUS} className="fill-white" style={{ filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.5))" }} />
+              ))}
+              {balls.map((ball) => (
+                <g key={ball.id}>
+                  <circle cx={ball.x} cy={ball.y} r={BALL_RADIUS} className="fill-[#FFD700]" style={{ filter: "drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))" }} />
+                </g>
+              ))}
+            </svg>
+
+            {/* Multiplier slots */}
+            <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-px px-1 pb-2">
+              {multipliers.map((mult, i) => (
+                <div key={i} className={`flex-1 py-1 rounded text-center text-[7px] font-bold ${getMultiplierColor(mult)}`}>
+                  {mult}x
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="bg-[#1a1a2e] rounded-xl p-4 space-y-4">
+          {/* Bet Amount */}
+          <div>
+            <label className="text-xs text-[#666666] mb-2 block">Bet Amount</label>
+            <div className="flex items-center bg-[#0f0f1a] rounded-lg overflow-hidden">
+              <span className="px-3 text-[#666666]">$</span>
+              <input type="number" min={1} value={betAmount} onChange={(e) => setBetAmount(Number(e.target.value) || 0)} className="flex-1 bg-transparent py-3 text-white outline-none" />
+              <button onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">½</button>
+              <button onClick={() => setBetAmount((a) => Math.min(balance, a * 2))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">2×</button>
+            </div>
+          </div>
+
+          {/* Risk Level */}
+          <div>
+            <label className="text-xs text-[#666666] mb-2 block">Risk Levels</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["low", "medium", "high"] as RiskLevel[]).map((level) => (
+                <button key={level} onClick={() => setRisk(level)} className={`py-2 rounded-lg text-sm font-medium capitalize transition-all ${risk === level ? "bg-[#2a2a3e] text-white" : "bg-[#0f0f1a] text-[#666666] hover:text-white"}`}>
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Balance & Bet */}
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              <p className="text-xs text-[#666666]">Balance</p>
+              <p className="text-lg font-bold text-white">{formatCurrency(balance)}</p>
+            </div>
+            <button onClick={dropBall} disabled={betAmount <= 0 || betAmount > balance} className="px-10 py-4 bg-gradient-to-r from-[#DC2626] to-[#FFD700] hover:from-[#EF4444] hover:to-[#FFEA00] disabled:bg-[#2a2a3e] disabled:from-[#2a2a3e] disabled:to-[#2a2a3e] disabled:text-[#666666] text-white font-bold rounded-full transition-colors disabled:cursor-not-allowed">
+              Place bet
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Layout */}
+      <div className="hidden lg:grid lg:grid-cols-3 gap-6">
         {/* LEFT: Betting Panel */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
-            <h2 className="text-lg font-bold text-white mb-4">Plinko</h2>
+        <div className="space-y-4">
+          <div className="bg-[#1a1a2e] rounded-xl p-4">
+            {/* Mode tabs */}
+            <div className="flex bg-[#0f0f1a] rounded-lg p-1 mb-6">
+              <button className="flex-1 py-2 px-4 rounded-md bg-transparent text-white text-sm font-medium border-b-2 border-[#FFD700]">Manual</button>
+              <button className="flex-1 py-2 px-4 rounded-md text-[#666666] text-sm font-medium hover:text-white transition-colors">Auto</button>
+            </div>
 
             {/* Bet Amount */}
             <div className="space-y-2 mb-4">
-              <label className="text-xs text-[#b0b0b0] font-medium">Bet Amount</label>
-              <div className="flex items-center bg-[#0a0a0a] rounded-lg border border-[#2a2a2a] overflow-hidden">
+              <label className="text-xs text-[#666666] font-medium">Bet Amount</label>
+              <div className="flex items-center bg-[#0f0f1a] rounded-lg overflow-hidden">
                 <span className="px-3 text-[#666666]">$</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={betAmount}
-                  onChange={(e) => setBetAmount(Number(e.target.value) || 0)}
-                  className="flex-1 bg-transparent py-3 text-white outline-none"
-                />
-                <div className="flex border-l border-[#2a2a2a]">
-                  <button
-                    onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))}
-                    className="px-3 py-3 text-[#b0b0b0] hover:text-white hover:bg-[#2a2a2a] transition-colors text-sm"
-                  >
-                    ½
-                  </button>
-                  <button
-                    onClick={() => setBetAmount((a) => Math.min(balance, a * 2))}
-                    className="px-3 py-3 text-[#b0b0b0] hover:text-white hover:bg-[#2a2a2a] transition-colors text-sm border-l border-[#2a2a2a]"
-                  >
-                    2×
-                  </button>
-                </div>
+                <input type="number" min={1} value={betAmount} onChange={(e) => setBetAmount(Number(e.target.value) || 0)} className="flex-1 bg-transparent py-3 text-white outline-none" />
+                <button className="px-2 py-3 text-[#22c55e] hover:bg-[#2a2a3e]">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" /></svg>
+                </button>
+                <button onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">½</button>
+                <button onClick={() => setBetAmount((a) => Math.min(balance, a * 2))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">2×</button>
+                <button className="px-2 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                </button>
               </div>
-              <div className="flex gap-2">
-                {[1, 5, 10, 50].map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => setBetAmount(preset)}
-                    className={`flex-1 py-1.5 text-xs rounded-md transition-colors ${
-                      betAmount === preset
-                        ? "bg-[#FFD700] text-black font-bold"
-                        : "bg-[#0a0a0a] hover:bg-[#2a2a2a] text-[#b0b0b0] hover:text-white"
-                    }`}
-                  >
-                    ${preset}
-                  </button>
-                ))}
+            </div>
+
+            {/* Rows Slider */}
+            <div className="space-y-2 mb-4">
+              <label className="text-xs text-[#666666] font-medium">Rows</label>
+              <div className="flex items-center gap-3 bg-[#0f0f1a] rounded-lg px-4 py-3">
+                <span className="text-white font-bold w-6">{rows}</span>
+                <input type="range" min={8} max={16} step={2} value={rows} onChange={(e) => setRows(Number(e.target.value))} className="flex-1 h-1 bg-[#2a2a3e] rounded-lg appearance-none cursor-pointer accent-white" />
               </div>
             </div>
 
             {/* Risk Level */}
-            <div className="space-y-2 mb-4">
-              <label className="text-xs text-[#b0b0b0] font-medium">Risk</label>
+            <div className="space-y-2 mb-6">
+              <label className="text-xs text-[#666666] font-medium">Risk Levels</label>
               <div className="grid grid-cols-3 gap-2">
                 {(["low", "medium", "high"] as RiskLevel[]).map((level) => (
-                  <button
-                    key={level}
-                    onClick={() => setRisk(level)}
-                    className={`py-2 rounded-lg text-sm font-medium capitalize transition-all ${
-                      risk === level
-                        ? level === "high"
-                          ? "bg-[#DC2626] text-white"
-                          : level === "medium"
-                          ? "bg-[#FFD700] text-black"
-                          : "bg-[#2a2a2a] text-white"
-                        : "bg-[#0a0a0a] text-[#b0b0b0] hover:bg-[#2a2a2a] hover:text-white border border-[#2a2a2a]"
-                    }`}
-                  >
-                    {level}
+                  <button key={level} onClick={() => setRisk(level)} className={`py-2 rounded-lg text-sm font-medium capitalize transition-all ${risk === level ? "bg-[#2a2a3e] text-white" : "bg-[#0f0f1a] text-[#666666] hover:text-white"}`}>
+                    {level.charAt(0).toUpperCase() + level.slice(1)}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Active Bets */}
+            {/* Place Bet */}
+            <button onClick={dropBall} disabled={betAmount <= 0 || betAmount > balance} className="w-full py-4 bg-gradient-to-r from-[#DC2626] to-[#FFD700] hover:from-[#EF4444] hover:to-[#FFEA00] disabled:bg-[#2a2a3e] disabled:from-[#2a2a3e] disabled:to-[#2a2a3e] disabled:text-[#666666] text-white font-bold rounded-full transition-colors disabled:cursor-not-allowed">
+              Place bet
+            </button>
+
+            {/* Auto Drop */}
+            <button onMouseDown={startAutoDrop} onMouseUp={stopAutoDrop} onMouseLeave={stopAutoDrop} onTouchStart={startAutoDrop} onTouchEnd={stopAutoDrop} disabled={betAmount <= 0 || betAmount > balance} className="w-full mt-2 py-3 bg-[#2a2a3e] hover:bg-[#3a3a4e] disabled:bg-[#1a1a2e] disabled:text-[#666666] text-white font-medium rounded-full transition-colors disabled:cursor-not-allowed text-sm">
+              Hold for Auto Drop
+            </button>
+
+            {/* Balance */}
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-sm text-[#666666]">Balance:</span>
+              <span className="text-white font-bold">{formatCurrency(balance)}</span>
+            </div>
+
             {activeBets > 0 && (
-              <div className="mb-4 p-3 bg-[#FFD700]/10 border border-[#FFD700]/30 rounded-lg">
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#b0b0b0]">Balls in play</span>
-                  <span className="text-[#FFD700] font-bold">{activeBets}</span>
-                </div>
+              <div className="mt-2 p-2 bg-[#FFD700]/10 border border-[#FFD700]/30 rounded-lg text-center">
+                <span className="text-sm text-[#FFD700]">{activeBets} ball{activeBets > 1 ? 's' : ''} in play</span>
               </div>
             )}
-
-            {/* Drop Buttons */}
-            <div className="space-y-2">
-              <button
-                onClick={dropBall}
-                disabled={betAmount <= 0 || betAmount > balance}
-                className="w-full py-4 bg-[#FFD700] hover:bg-[#FFEA00] disabled:bg-[#2a2a2a] disabled:text-[#666666] text-black font-bold rounded-lg transition-colors disabled:cursor-not-allowed"
-              >
-                Drop Ball - {formatCurrency(betAmount)}
-              </button>
-
-              <button
-                onMouseDown={startAutoDrop}
-                onMouseUp={stopAutoDrop}
-                onMouseLeave={stopAutoDrop}
-                onTouchStart={startAutoDrop}
-                onTouchEnd={stopAutoDrop}
-                disabled={betAmount <= 0 || betAmount > balance}
-                className="w-full py-3 bg-[#DC2626] hover:bg-[#EF4444] disabled:bg-[#2a2a2a] disabled:text-[#666666] text-white font-bold rounded-lg transition-colors disabled:cursor-not-allowed text-sm"
-              >
-                Hold to Auto-Drop
-              </button>
-            </div>
-
-            {/* Balance Display */}
-            <div className="mt-4 p-3 bg-[#0a0a0a] rounded-lg">
-              <div className="flex justify-between text-sm">
-                <span className="text-[#b0b0b0]">Balance</span>
-                <span className="text-white font-bold">{formatCurrency(balance)}</span>
-              </div>
-            </div>
           </div>
 
           {/* History */}
-          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
+          <div className="bg-[#1a1a2e] rounded-xl p-4">
             <h3 className="text-sm font-medium text-white mb-3">Recent Drops</h3>
             {history.length === 0 ? (
               <p className="text-xs text-[#666666] text-center py-4">No drops yet</p>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2 max-h-40 overflow-y-auto">
                 {history.map((h, i) => (
                   <div key={i} className="flex justify-between items-center text-sm">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${getMultiplierColor(h.multiplier)}`}>
-                      {h.multiplier}x
-                    </span>
-                    <span className={h.win >= h.bet ? "text-[#FFD700]" : "text-[#DC2626]"}>
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${getMultiplierColor(h.multiplier)}`}>{h.multiplier}x</span>
+                    <span className={h.win >= h.bet ? "text-[#22c55e]" : "text-[#ef4444]"}>
                       {h.win >= h.bet ? "+" : ""}{formatCurrency(h.win - h.bet)}
                     </span>
                   </div>
@@ -443,116 +438,51 @@ export default function PlinkoPage() {
 
         {/* RIGHT: Game Board */}
         <div className="lg:col-span-2">
-          <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-6">
-            {/* Plinko Board */}
-            <div className="relative w-full max-w-lg mx-auto aspect-[4/5] bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] rounded-xl overflow-hidden">
-              <svg
-                className="absolute inset-0 w-full h-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="xMidYMid meet"
-              >
-                {/* Drop zone indicator */}
+          <div className="bg-[#1a1a2e] rounded-xl p-6 h-full">
+            <div className="relative w-full max-w-xl mx-auto aspect-[4/5] bg-gradient-to-b from-[#0f0f1a] to-[#1a1a2e] rounded-xl overflow-hidden">
+              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                {/* Drop zone */}
                 <rect x="40" y="0" width="20" height="8" fill="#FFD700" fillOpacity="0.1" rx="2" />
                 <text x="50" y="5" textAnchor="middle" fill="#FFD700" fontSize="3" fontWeight="bold">DROP</text>
 
-                {/* Draw pins */}
-                {PIN_POSITIONS.map((pin, i) => (
-                  <circle
-                    key={i}
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={PIN_RADIUS}
-                    className="fill-[#FFD700]"
-                    style={{
-                      filter: "drop-shadow(0 0 2px rgba(255, 215, 0, 0.5))",
-                    }}
-                  />
+                {/* Pins */}
+                {pinPositions.map((pin, i) => (
+                  <circle key={i} cx={pin.x} cy={pin.y} r={PIN_RADIUS} className="fill-white" style={{ filter: "drop-shadow(0 0 3px rgba(255, 255, 255, 0.6))" }} />
                 ))}
 
-                {/* Draw balls */}
+                {/* Balls */}
                 {balls.map((ball) => (
                   <g key={ball.id}>
-                    {/* Ball shadow */}
-                    <ellipse
-                      cx={ball.x}
-                      cy={ball.y + BALL_RADIUS}
-                      rx={BALL_RADIUS * 0.8}
-                      ry={BALL_RADIUS * 0.3}
-                      fill="rgba(0,0,0,0.3)"
-                    />
-                    {/* Ball */}
-                    <circle
-                      cx={ball.x}
-                      cy={ball.y}
-                      r={BALL_RADIUS}
-                      className={ball.done ? "fill-[#FFD700]" : "fill-white"}
-                      style={{
-                        filter: ball.done
-                          ? "drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))"
-                          : "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
-                        transition: "fill 0.3s",
-                      }}
-                    />
-                    {/* Ball highlight */}
-                    <circle
-                      cx={ball.x - BALL_RADIUS * 0.3}
-                      cy={ball.y - BALL_RADIUS * 0.3}
-                      r={BALL_RADIUS * 0.3}
-                      fill="rgba(255,255,255,0.4)"
-                    />
+                    <ellipse cx={ball.x} cy={ball.y + BALL_RADIUS} rx={BALL_RADIUS * 0.8} ry={BALL_RADIUS * 0.3} fill="rgba(0,0,0,0.3)" />
+                    <circle cx={ball.x} cy={ball.y} r={BALL_RADIUS} className="fill-[#FFD700]" style={{ filter: "drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))" }} />
+                    <circle cx={ball.x - BALL_RADIUS * 0.3} cy={ball.y - BALL_RADIUS * 0.3} r={BALL_RADIUS * 0.3} fill="rgba(255,255,255,0.4)" />
                   </g>
                 ))}
               </svg>
 
-              {/* Multiplier slots at bottom */}
+              {/* Multiplier slots */}
               <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-0.5 px-2 pb-2">
                 {multipliers.map((mult, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 py-2 rounded text-center text-xs font-bold transition-all duration-200 ${getMultiplierColor(mult)} ${getSlotHighlight(i)}`}
-                  >
+                  <div key={i} className={`flex-1 py-2 rounded text-center text-xs font-bold ${getMultiplierColor(mult)}`}>
                     {mult}x
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Game Info */}
+            {/* Stats */}
             <div className="mt-6 grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-xs text-[#666666] mb-1">Risk Level</p>
-                <p className={`text-xl font-bold capitalize ${
-                  risk === "high" ? "text-[#DC2626]" : risk === "medium" ? "text-[#FFD700]" : "text-white"
-                }`}>
-                  {risk}
-                </p>
+                <p className="text-xl font-bold text-white capitalize">{risk}</p>
               </div>
               <div>
                 <p className="text-xs text-[#666666] mb-1">Rows</p>
-                <p className="text-xl font-bold text-white">{ROWS}</p>
+                <p className="text-xl font-bold text-white">{rows}</p>
               </div>
               <div>
                 <p className="text-xs text-[#666666] mb-1">Max Win</p>
                 <p className="text-xl font-bold text-[#FFD700]">{Math.max(...multipliers)}x</p>
-              </div>
-            </div>
-          </div>
-
-          {/* How to Play */}
-          <div className="mt-4 bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
-            <h3 className="text-sm font-medium text-white mb-3">How to Play</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-[#b0b0b0]">
-              <div className="flex items-start gap-2">
-                <span className="text-[#FFD700]">1.</span>
-                <span>Set your bet amount and choose a risk level</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-[#FFD700]">2.</span>
-                <span>Click to drop balls or hold for rapid drops</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-[#FFD700]">3.</span>
-                <span>Win based on where each ball lands</span>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 const STORAGE_KEY = "sixseven_wallet";
-const DEFAULT_BALANCE = 10000;
+const DEFAULT_BALANCE = 0;
 
 export interface WalletState {
   balance: number;
@@ -74,6 +74,25 @@ export function useWallet() {
   }, []);
 
   const addFunds = useCallback((amount: number) => {
+    // Read latest from localStorage to avoid stale state issues
+    // when multiple components use useWallet independently
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const latest = JSON.parse(stored);
+          setWallet({
+            ...defaultWallet,
+            ...latest,
+            balance: (latest.balance || 0) + amount,
+          });
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to read wallet for addFunds:", e);
+      }
+    }
+    // Fallback to prev state if localStorage read fails
     setWallet((prev) => ({
       ...prev,
       balance: prev.balance + amount,
@@ -81,6 +100,24 @@ export function useWallet() {
   }, []);
 
   const cashOut = useCallback((amount: number) => {
+    // Read latest from localStorage to avoid stale state issues
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const latest = JSON.parse(stored);
+          setWallet({
+            ...defaultWallet,
+            ...latest,
+            balance: Math.max(0, (latest.balance || 0) - amount),
+          });
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to read wallet for cashOut:", e);
+      }
+    }
+    // Fallback to prev state if localStorage read fails
     setWallet((prev) => ({
       ...prev,
       balance: Math.max(0, prev.balance - amount),
