@@ -88,7 +88,7 @@ export default function RoulettePage() {
       }
       return [...prev, { type, numbers, amount: chipValue, position }];
     });
-    play("chip");
+    play("click");
   };
 
   const clearBets = () => setPlacedBets([]);

@@ -81,7 +81,7 @@ export default function BaccaratPage() {
       if (existing) return prev.map(b => b.type === type ? { ...b, amount: b.amount + chipValue } : b);
       return [...prev, { type, amount: chipValue }];
     });
-    play("chip");
+    play("click");
   };
 
   const clearBets = () => setBets([]);
