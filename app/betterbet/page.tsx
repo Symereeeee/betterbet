@@ -6,13 +6,22 @@ import { useWallet, formatCurrency } from "@/lib/useWallet";
 
 const originalGames = [
   {
+    name: "SixSeven Slots",
+    href: "/betterbet/slots",
+    icon: "🎰",
+    description: "Land 6-7-6 for the JACKPOT! Our signature game",
+    tag: "Featured",
+    gradient: "from-[#DC2626] to-[#FFD700]",
+    houseEdge: "10%",
+  },
+  {
     name: "Dice",
     href: "/betterbet/dice",
     icon: "🎲",
-    description: "Classic high/low dice game with 2x multiplier",
+    description: "Classic high/low dice game with adjustable odds",
     tag: "Popular",
     gradient: "from-[#DC2626] to-[#FFD700]",
-    houseEdge: "1%",
+    houseEdge: "10%",
   },
   {
     name: "Blackjack",
@@ -21,16 +30,34 @@ const originalGames = [
     description: "Beat the dealer without going over 21",
     tag: "Classic",
     gradient: "from-[#FFD700] to-[#DC2626]",
-    houseEdge: "0.5%",
+    houseEdge: "10%",
+  },
+  {
+    name: "Roulette",
+    href: "/betterbet/roulette",
+    icon: "🎡",
+    description: "Spin the wheel and bet on your lucky number",
+    tag: "New",
+    gradient: "from-[#22c55e] to-[#DC2626]",
+    houseEdge: "10%",
+  },
+  {
+    name: "Baccarat",
+    href: "/betterbet/baccarat",
+    icon: "🎴",
+    description: "Player vs Banker - who gets closest to 9?",
+    tag: "New",
+    gradient: "from-[#3B82F6] to-[#DC2626]",
+    houseEdge: "10%",
   },
   {
     name: "Mines",
     href: "/betterbet/mines",
     icon: "💣",
     description: "Navigate the minefield for big rewards",
-    tag: "New",
+    tag: "Hot",
     gradient: "from-[#DC2626] to-[#8B0000]",
-    houseEdge: "1%",
+    houseEdge: "10%",
   },
   {
     name: "Plinko",
@@ -39,14 +66,14 @@ const originalGames = [
     description: "Drop the ball and watch it bounce to riches",
     tag: "Fun",
     gradient: "from-[#FFD700] to-[#FFA500]",
-    houseEdge: "1%",
+    houseEdge: "10%",
   },
 ];
 
 const stats = [
-  { label: "Total Games", value: "4" },
-  { label: "Max Multiplier", value: "1000x" },
-  { label: "Min Bet", value: "$0.10" },
+  { label: "Total Games", value: "7" },
+  { label: "Max Multiplier", value: "60x" },
+  { label: "Min Bet", value: "$1" },
   { label: "Max Bet", value: "$10,000" },
 ];
 

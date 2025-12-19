@@ -21,8 +21,8 @@ const calculateMultiplier = (gemsRevealed: number, mineCount: number): number =>
     multiplier *= (safeSpots - i) / (GRID_SIZE - i);
   }
 
-  // Invert and add house edge (1%)
-  return Number((0.99 / multiplier).toFixed(2));
+  // Invert and add house edge (10% house edge = 90% RTP)
+  return Number((0.90 / multiplier).toFixed(2));
 };
 
 export default function MinesPage() {

@@ -18,7 +18,7 @@ type HistoryItem = {
   payout: number;
 };
 
-const HOUSE_EDGE = 0.05; // 5% house edge
+const HOUSE_EDGE = 0.10; // 10% house edge (90% RTP)
 
 export default function DicePage() {
   const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();

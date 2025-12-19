@@ -142,7 +142,7 @@ export default function BlackjackPage() {
     const playerScore = calculateHand(pHand);
     const dealerScore = calculateHand(dHand);
 
-    // Check for blackjacks
+    // Check for blackjacks (90% RTP)
     if (playerScore === 21 && dealerScore === 21) {
       setGameState("ended");
       setResult("push");
@@ -150,9 +150,9 @@ export default function BlackjackPage() {
     } else if (playerScore === 21) {
       setGameState("ended");
       setResult("blackjack");
-      setMessage("Blackjack! You win 3:2!");
+      setMessage("Blackjack! You win 2.25x!");
       setTimeout(() => play("bigWin"), 500);
-      walletPlaceBet(betAmount, true, betAmount * 2.5);
+      walletPlaceBet(betAmount, true, betAmount * 2.25); // 90% RTP blackjack payout
     } else if (dealerScore === 21) {
       setGameState("ended");
       setResult("lose");
@@ -213,7 +213,7 @@ export default function BlackjackPage() {
         setResult("win");
         setMessage("Dealer busts! You win!");
         play("win");
-        walletPlaceBet(betAmount, true, betAmount * 2);
+        walletPlaceBet(betAmount, true, betAmount * 1.8); // 90% RTP
       } else if (finalDealerTotal > finalPlayerTotal) {
         setResult("lose");
         setMessage("Dealer wins with " + finalDealerTotal);
@@ -223,7 +223,7 @@ export default function BlackjackPage() {
         setResult("win");
         setMessage("You win with " + finalPlayerTotal + "!");
         play("win");
-        walletPlaceBet(betAmount, true, betAmount * 2);
+        walletPlaceBet(betAmount, true, betAmount * 1.8); // 90% RTP
       } else {
         setResult("push");
         setMessage("Push! It's a tie.");
@@ -282,7 +282,7 @@ export default function BlackjackPage() {
         setResult("win");
         setMessage("Dealer busts! You win!");
         play("bigWin");
-        walletPlaceBet(newBetAmount, true, newBetAmount * 2);
+        walletPlaceBet(newBetAmount, true, newBetAmount * 1.8); // 90% RTP
       } else if (finalDealerTotal > finalPlayerTotal) {
         setResult("lose");
         setMessage("Dealer wins with " + finalDealerTotal);
@@ -292,7 +292,7 @@ export default function BlackjackPage() {
         setResult("win");
         setMessage("You win with " + finalPlayerTotal + "!");
         play("bigWin");
-        walletPlaceBet(newBetAmount, true, newBetAmount * 2);
+        walletPlaceBet(newBetAmount, true, newBetAmount * 1.8); // 90% RTP
       } else {
         setResult("push");
         setMessage("Push! It's a tie.");
@@ -629,9 +629,10 @@ export default function BlackjackPage() {
             <h3 className="text-sm font-medium text-white mb-3">Rules</h3>
             <ul className="space-y-2 text-xs text-[#b0b0b0]">
               <li>• Get closer to 21 than the dealer without busting</li>
-              <li>• Blackjack (21 with 2 cards) pays 3:2</li>
+              <li>• Blackjack pays 2.25x</li>
+              <li>• Regular win pays 1.8x</li>
+              <li>• Push on ties</li>
               <li>• Dealer stands on 17</li>
-              <li>• Double down available on first two cards</li>
             </ul>
           </div>
         </div>

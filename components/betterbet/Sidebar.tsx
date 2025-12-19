@@ -10,15 +10,22 @@ const menuItems = [
     icon: "🎰",
     items: [
       { name: "Lobby", href: "/betterbet", icon: "🏠" },
+      { name: "SixSeven Slots", href: "/betterbet/slots", icon: "🎰" },
       { name: "Dice", href: "/betterbet/dice", icon: "🎲" },
       { name: "Blackjack", href: "/betterbet/blackjack", icon: "🃏" },
+      { name: "Roulette", href: "/betterbet/roulette", icon: "🎡" },
+      { name: "Baccarat", href: "/betterbet/baccarat", icon: "🎴" },
       { name: "Mines", href: "/betterbet/mines", icon: "💣" },
       { name: "Plinko", href: "/betterbet/plinko", icon: "⚪" },
     ],
   },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  onContactClick?: () => void;
+}
+
+export default function Sidebar({ onContactClick }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -68,12 +75,17 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Contact Button */}
       <div className="p-4 border-t border-[#2a2a2a]">
-        <div className="text-xs text-[#b0b0b0] text-center">
-          <p className="text-[#DC2626]">Demo Mode</p>
-          <p className="text-[#666666]">No real money involved</p>
-        </div>
+        <button
+          onClick={onContactClick}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#DC2626] to-[#FFD700] hover:from-[#EF4444] hover:to-[#FFEA00] text-white font-medium rounded-lg transition-all text-sm"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Keep in Touch
+        </button>
       </div>
     </aside>
   );
