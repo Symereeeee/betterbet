@@ -21,14 +21,14 @@ export default function BetterBetLayout({
 
   // Show disclaimer on first visit
   useEffect(() => {
-    const hasSeenDisclaimer = localStorage.getItem("sixseven_disclaimer_seen");
+    const hasSeenDisclaimer = localStorage.getItem("betterbet_disclaimer_seen");
     if (!hasSeenDisclaimer) {
       setShowDisclaimer(true);
     }
   }, []);
 
   const handleAcceptDisclaimer = () => {
-    localStorage.setItem("sixseven_disclaimer_seen", "true");
+    localStorage.setItem("betterbet_disclaimer_seen", "true");
     setShowDisclaimer(false);
   };
 

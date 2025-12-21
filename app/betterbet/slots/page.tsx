@@ -109,7 +109,7 @@ export default function SlotsPage() {
       <div className="flex items-center gap-2 text-sm text-[#666666] mb-4 lg:mb-6">
         <Link href="/betterbet" className="hover:text-white transition-colors">Casino</Link>
         <span>/</span>
-        <span className="text-white">SixSeven Slots</span>
+        <span className="text-white">BetterBet Slots</span>
       </div>
 
       {/* Mobile Layout */}
@@ -119,7 +119,7 @@ export default function SlotsPage() {
           {/* Logo */}
           <div className="text-center mb-6">
             <h2 className="text-3xl font-black bg-gradient-to-r from-[#DC2626] via-[#FFD700] to-[#DC2626] bg-clip-text text-transparent">
-              SixSeven
+              BetterBet
             </h2>
             <p className="text-sm text-[#666666] mt-1">Land 6-7 to win {WIN_MULTIPLIER}x!</p>
           </div>
@@ -335,7 +335,7 @@ export default function SlotsPage() {
             {/* Header */}
             <div className="text-center mb-8">
               <h2 className="text-5xl font-black bg-gradient-to-r from-[#DC2626] via-[#FFD700] to-[#DC2626] bg-clip-text text-transparent mb-2">
-                SixSeven
+                BetterBet
               </h2>
               <p className="text-[#666666]">Land 6-7 to win {WIN_MULTIPLIER}x your bet!</p>
             </div>

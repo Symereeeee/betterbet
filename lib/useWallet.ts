@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const STORAGE_KEY = "sixseven_wallet";
-const WALLET_UPDATE_EVENT = "sixseven_wallet_update";
+const STORAGE_KEY = "betterbet_wallet";
+const WALLET_UPDATE_EVENT = "betterbet_wallet_update";
 const DEFAULT_BALANCE = 0;
 
 export interface WalletState {

@@ -10,7 +10,7 @@ const menuItems = [
     icon: "🎰",
     items: [
       { name: "Lobby", href: "/betterbet", icon: "🏠" },
-      { name: "SixSeven Slots", href: "/betterbet/slots", icon: "🎰" },
+      { name: "Slots", href: "/betterbet/slots", icon: "🎰" },
       { name: "Dice", href: "/betterbet/dice", icon: "🎲" },
       { name: "Blackjack", href: "/betterbet/blackjack", icon: "🃏" },
       { name: "Roulette", href: "/betterbet/roulette", icon: "🎡" },
@@ -34,9 +34,9 @@ export default function Sidebar({ onContactClick }: SidebarProps) {
       <div className="p-4 border-b border-[#2a2a2a]">
         <Link href="/betterbet" className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#DC2626] to-[#FFD700] flex items-center justify-center text-lg font-bold text-white shadow-lg shadow-red-500/20">
-            67
+            BB
           </div>
-          <span className="text-xl font-bold text-white">SixSeven.bet</span>
+          <span className="text-xl font-bold text-white">BetterBet</span>
         </Link>
       </div>
 

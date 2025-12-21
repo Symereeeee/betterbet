@@ -6,7 +6,7 @@ import { useWallet, formatCurrency } from "@/lib/useWallet";
 
 const originalGames = [
   {
-    name: "SixSeven Slots",
+    name: "Slots",
     href: "/betterbet/slots",
     icon: "🎰",
     description: "Land 6-7-6 for the JACKPOT! Our signature game",
@@ -94,7 +94,7 @@ export default function BetterBetLobby() {
         <div className="relative p-6 lg:p-10">
           <div className="max-w-2xl">
             <h1 className="text-3xl lg:text-5xl font-bold text-white mb-4">
-              Welcome to <span className="bg-gradient-to-r from-[#DC2626] via-[#FFD700] to-[#DC2626] bg-clip-text text-transparent">SixSeven.bet</span>
+              Welcome to <span className="bg-gradient-to-r from-[#DC2626] via-[#FFD700] to-[#DC2626] bg-clip-text text-transparent">BetterBet</span>
             </h1>
             <p className="text-lg text-[#b0b0b0] mb-6">
               Experience the thrill of casino gaming with our provably fair games.
@@ -179,7 +179,7 @@ export default function BetterBetLobby() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">SixSeven Originals</h2>
+            <h2 className="text-2xl font-bold text-white">BetterBet Originals</h2>
             <p className="text-sm text-[#b0b0b0]">Our exclusive in-house games</p>
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function BetterBetLobby() {
 
       {/* Features */}
       <section>
-        <h2 className="text-2xl font-bold text-white mb-6">Why SixSeven.bet?</h2>
+        <h2 className="text-2xl font-bold text-white mb-6">Why BetterBet?</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { icon: "🔒", title: "Provably Fair", desc: "All games use verifiable random outcomes", color: "#DC2626" },
