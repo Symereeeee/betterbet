@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 const STORAGE_KEY = "sixseven_wallet";
+const WALLET_UPDATE_EVENT = "sixseven_wallet_update";
 const DEFAULT_BALANCE = 0;
 
 export interface WalletState {
@@ -22,6 +23,27 @@ const defaultWallet: WalletState = {
   betsPlaced: 0,
 };
 
+// Helper to broadcast wallet updates to all components
+const broadcastUpdate = () => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(WALLET_UPDATE_EVENT));
+  }
+};
+
+// Helper to read wallet from localStorage
+const readWalletFromStorage = (): WalletState => {
+  if (typeof window === "undefined") return defaultWallet;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return { ...defaultWallet, ...JSON.parse(stored) };
+    }
+  } catch (e) {
+    console.error("Failed to read wallet:", e);
+  }
+  return defaultWallet;
+};
+
 export function useWallet() {
   const [wallet, setWallet] = useState<WalletState>(defaultWallet);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -29,17 +51,32 @@ export function useWallet() {
   // Load wallet from localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setWallet({ ...defaultWallet, ...parsed });
-      }
-    } catch (e) {
-      console.error("Failed to load wallet:", e);
-    }
+    setWallet(readWalletFromStorage());
     setIsLoaded(true);
+  }, []);
+
+  // Listen for wallet updates from other components (same tab)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleWalletUpdate = () => {
+      setWallet(readWalletFromStorage());
+    };
+
+    // Listen for custom event (same tab updates)
+    window.addEventListener(WALLET_UPDATE_EVENT, handleWalletUpdate);
+
+    // Listen for storage event (cross-tab updates)
+    window.addEventListener("storage", (e) => {
+      if (e.key === STORAGE_KEY) {
+        handleWalletUpdate();
+      }
+    });
+
+    return () => {
+      window.removeEventListener(WALLET_UPDATE_EVENT, handleWalletUpdate);
+      window.removeEventListener("storage", handleWalletUpdate);
+    };
   }, []);
 
   // Save wallet to localStorage whenever it changes
@@ -75,53 +112,30 @@ export function useWallet() {
 
   const addFunds = useCallback((amount: number) => {
     // Read latest from localStorage to avoid stale state issues
-    // when multiple components use useWallet independently
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const latest = JSON.parse(stored);
-          setWallet({
-            ...defaultWallet,
-            ...latest,
-            balance: (latest.balance || 0) + amount,
-          });
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to read wallet for addFunds:", e);
-      }
-    }
-    // Fallback to prev state if localStorage read fails
-    setWallet((prev) => ({
-      ...prev,
-      balance: prev.balance + amount,
-    }));
+    const latest = readWalletFromStorage();
+    const newWallet = {
+      ...latest,
+      balance: (latest.balance || 0) + amount,
+    };
+
+    // Save immediately and broadcast
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newWallet));
+    setWallet(newWallet);
+    broadcastUpdate();
   }, []);
 
   const cashOut = useCallback((amount: number) => {
     // Read latest from localStorage to avoid stale state issues
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const latest = JSON.parse(stored);
-          setWallet({
-            ...defaultWallet,
-            ...latest,
-            balance: Math.max(0, (latest.balance || 0) - amount),
-          });
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to read wallet for cashOut:", e);
-      }
-    }
-    // Fallback to prev state if localStorage read fails
-    setWallet((prev) => ({
-      ...prev,
-      balance: Math.max(0, prev.balance - amount),
-    }));
+    const latest = readWalletFromStorage();
+    const newWallet = {
+      ...latest,
+      balance: Math.max(0, (latest.balance || 0) - amount),
+    };
+
+    // Save immediately and broadcast
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newWallet));
+    setWallet(newWallet);
+    broadcastUpdate();
   }, []);
 
   return {

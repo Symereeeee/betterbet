@@ -89,8 +89,11 @@ export default function Header({ balance, onCashIn, onCashOut, isMuted, onToggle
             <nav className="p-4 space-y-2">
               {[
                 { name: "Lobby", href: "/betterbet", icon: "🏠" },
+                { name: "SixSeven Slots", href: "/betterbet/slots", icon: "🎰" },
                 { name: "Dice", href: "/betterbet/dice", icon: "🎲" },
                 { name: "Blackjack", href: "/betterbet/blackjack", icon: "🃏" },
+                { name: "Roulette", href: "/betterbet/roulette", icon: "🎡" },
+                { name: "Baccarat", href: "/betterbet/baccarat", icon: "🎴" },
                 { name: "Mines", href: "/betterbet/mines", icon: "💣" },
                 { name: "Plinko", href: "/betterbet/plinko", icon: "⚪" },
               ].map((item) => (

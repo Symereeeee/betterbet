@@ -1,7 +1,7 @@
 // app/betterbet/plinko/page.tsx
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from "react";
 import { useWallet, formatCurrency } from "@/lib/useWallet";
 import { useSounds } from "@/lib/useSounds";
 import Link from "next/link";
@@ -20,45 +20,98 @@ interface Ball {
   betAmount: number;
 }
 
+interface Pin {
+  x: number;
+  y: number;
+  row: number;
+}
+
 // Multipliers based on risk level and rows (90% RTP)
-const getMultipliers = (rows: number, risk: RiskLevel): number[] => {
-  const multiplierSets: Record<number, Record<RiskLevel, number[]>> = {
-    8: {
-      low: [1.1, 0.9, 0.7, 0.5, 0.4, 0.5, 0.7, 0.9, 1.1],
-      medium: [1.8, 1.0, 0.6, 0.4, 0.2, 0.4, 0.6, 1.0, 1.8],
-      high: [5, 1.8, 0.8, 0.3, 0.1, 0.3, 0.8, 1.8, 5],
-    },
-    10: {
-      low: [1.2, 0.9, 0.7, 0.5, 0.4, 0.3, 0.4, 0.5, 0.7, 0.9, 1.2],
-      medium: [2.5, 1.3, 0.8, 0.5, 0.3, 0.2, 0.3, 0.5, 0.8, 1.3, 2.5],
-      high: [12, 2.5, 1.5, 0.7, 0.3, 0.1, 0.3, 0.7, 1.5, 2.5, 12],
-    },
-    12: {
-      low: [1.2, 1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2],
-      medium: [3, 1.8, 1.1, 0.8, 0.5, 0.3, 0.2, 0.3, 0.5, 0.8, 1.1, 1.8, 3],
-      high: [18, 6, 2.2, 1.0, 0.5, 0.3, 0.1, 0.3, 0.5, 1.0, 2.2, 6, 18],
-    },
-    14: {
-      low: [1.3, 1.1, 0.9, 0.7, 0.5, 0.4, 0.35, 0.3, 0.35, 0.4, 0.5, 0.7, 0.9, 1.1, 1.3],
-      medium: [4, 2.2, 1.4, 1.0, 0.7, 0.4, 0.3, 0.2, 0.3, 0.4, 0.7, 1.0, 1.4, 2.2, 4],
-      high: [30, 10, 3.5, 1.8, 0.8, 0.4, 0.2, 0.1, 0.2, 0.4, 0.8, 1.8, 3.5, 10, 30],
-    },
-    16: {
-      low: [1.3, 1.2, 1.0, 0.8, 0.7, 0.5, 0.4, 0.35, 0.3, 0.35, 0.4, 0.5, 0.7, 0.8, 1.0, 1.2, 1.3],
-      medium: [5, 2.6, 1.8, 1.2, 0.8, 0.6, 0.4, 0.3, 0.2, 0.3, 0.4, 0.6, 0.8, 1.2, 1.8, 2.6, 5],
-      high: [60, 18, 6, 2.6, 1.2, 0.5, 0.3, 0.2, 0.1, 0.2, 0.3, 0.5, 1.2, 2.6, 6, 18, 60],
-    },
-  };
-  return multiplierSets[rows]?.[risk] || multiplierSets[12][risk];
+const MULTIPLIER_SETS: Record<number, Record<RiskLevel, number[]>> = {
+  8: {
+    low: [1.1, 0.9, 0.7, 0.5, 0.4, 0.5, 0.7, 0.9, 1.1],
+    medium: [1.8, 1.0, 0.6, 0.4, 0.2, 0.4, 0.6, 1.0, 1.8],
+    high: [5, 1.8, 0.8, 0.3, 0.1, 0.3, 0.8, 1.8, 5],
+  },
+  10: {
+    low: [1.2, 0.9, 0.7, 0.5, 0.4, 0.3, 0.4, 0.5, 0.7, 0.9, 1.2],
+    medium: [2.5, 1.3, 0.8, 0.5, 0.3, 0.2, 0.3, 0.5, 0.8, 1.3, 2.5],
+    high: [12, 2.5, 1.5, 0.7, 0.3, 0.1, 0.3, 0.7, 1.5, 2.5, 12],
+  },
+  12: {
+    low: [1.2, 1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2],
+    medium: [3, 1.8, 1.1, 0.8, 0.5, 0.3, 0.2, 0.3, 0.5, 0.8, 1.1, 1.8, 3],
+    high: [18, 6, 2.2, 1.0, 0.5, 0.3, 0.1, 0.3, 0.5, 1.0, 2.2, 6, 18],
+  },
+  14: {
+    low: [1.3, 1.1, 0.9, 0.7, 0.5, 0.4, 0.35, 0.3, 0.35, 0.4, 0.5, 0.7, 0.9, 1.1, 1.3],
+    medium: [4, 2.2, 1.4, 1.0, 0.7, 0.4, 0.3, 0.2, 0.3, 0.4, 0.7, 1.0, 1.4, 2.2, 4],
+    high: [30, 10, 3.5, 1.8, 0.8, 0.4, 0.2, 0.1, 0.2, 0.4, 0.8, 1.8, 3.5, 10, 30],
+  },
+  16: {
+    low: [1.3, 1.2, 1.0, 0.8, 0.7, 0.5, 0.4, 0.35, 0.3, 0.35, 0.4, 0.5, 0.7, 0.8, 1.0, 1.2, 1.3],
+    medium: [5, 2.6, 1.8, 1.2, 0.8, 0.6, 0.4, 0.3, 0.2, 0.3, 0.4, 0.6, 0.8, 1.2, 1.8, 2.6, 5],
+    high: [60, 18, 6, 2.6, 1.2, 0.5, 0.3, 0.2, 0.1, 0.2, 0.3, 0.5, 1.2, 2.6, 6, 18, 60],
+  },
 };
 
 const GRAVITY = 0.25;
 const BOUNCE = 0.6;
 const FRICTION = 0.995;
 const BOARD_WIDTH = 100;
-const BOARD_HEIGHT = 100;
 const PIN_RADIUS = 0.8;
 const BALL_RADIUS = 1.4;
+const PINS_START = 3;
+
+// Pre-calculate pin positions for a given row count - cached outside component
+const pinCache = new Map<number, Pin[]>();
+const pinsByRowCache = new Map<number, Pin[][]>();
+
+const calculatePinPositions = (rows: number): Pin[] => {
+  if (pinCache.has(rows)) return pinCache.get(rows)!;
+
+  const pins: Pin[] = [];
+  for (let row = 0; row < rows; row++) {
+    const pinsInRow = PINS_START + row;
+    const rowY = 15 + (row * 60) / rows;
+    const totalWidth = 70;
+    const spacing = totalWidth / (pinsInRow - 1 || 1);
+    const startX = (BOARD_WIDTH - totalWidth) / 2;
+
+    for (let pin = 0; pin < pinsInRow; pin++) {
+      pins.push({ x: startX + pin * spacing, y: rowY, row });
+    }
+  }
+  pinCache.set(rows, pins);
+  return pins;
+};
+
+const groupPinsByRow = (pins: Pin[], rows: number): Pin[][] => {
+  if (pinsByRowCache.has(rows)) return pinsByRowCache.get(rows)!;
+
+  const grouped: Pin[][] = Array.from({ length: rows }, () => []);
+  for (const pin of pins) {
+    grouped[pin.row].push(pin);
+  }
+  pinsByRowCache.set(rows, grouped);
+  return grouped;
+};
+
+// Memoized Pins component - renders once per row count change
+const PinsLayer = memo(({ pins }: { pins: Pin[] }) => (
+  <>
+    {pins.map((pin, i) => (
+      <circle key={i} cx={pin.x} cy={pin.y} r={PIN_RADIUS} fill="white" />
+    ))}
+  </>
+));
+PinsLayer.displayName = "PinsLayer";
+
+// Memoized Ball component
+const BallComponent = memo(({ x, y }: { x: number; y: number }) => (
+  <circle cx={x} cy={y} r={BALL_RADIUS} fill="#FFD700" />
+));
+BallComponent.displayName = "BallComponent";
 
 export default function PlinkoPage() {
   const { balance, placeBet: walletPlaceBet, isLoaded } = useWallet();
@@ -69,67 +122,85 @@ export default function PlinkoPage() {
   const [balls, setBalls] = useState<Ball[]>([]);
   const [history, setHistory] = useState<{ multiplier: number; win: number; bet: number }[]>([]);
   const [activeBets, setActiveBets] = useState(0);
+
   const ballIdRef = useRef(0);
   const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
+  const ballsRef = useRef<Ball[]>([]);
+  const completedBallsRef = useRef<Set<number>>(new Set());
 
-  const multipliers = getMultipliers(rows, risk);
+  // Memoize pin positions and grouped pins
+  const pinPositions = useMemo(() => calculatePinPositions(rows), [rows]);
+  const pinsByRow = useMemo(() => groupPinsByRow(pinPositions, rows), [pinPositions, rows]);
+
+  const multipliers = MULTIPLIER_SETS[rows]?.[risk] || MULTIPLIER_SETS[12][risk];
   const numSlots = rows + 1;
 
-  // Calculate pin positions based on rows
-  const getPinPositions = useCallback(() => {
-    const pins: { x: number; y: number; row: number }[] = [];
-    const PINS_START = 3;
-    for (let row = 0; row < rows; row++) {
-      const pinsInRow = PINS_START + row;
-      const rowY = 15 + (row * 60) / rows;
-      const totalWidth = 70;
-      const spacing = totalWidth / (pinsInRow - 1 || 1);
-      const startX = (BOARD_WIDTH - totalWidth) / 2;
-
-      for (let pin = 0; pin < pinsInRow; pin++) {
-        pins.push({ x: startX + pin * spacing, y: rowY, row });
-      }
-    }
-    return pins;
-  }, [rows]);
-
-  const pinPositions = getPinPositions();
-
-  // Physics simulation
+  // Keep ballsRef in sync
   useEffect(() => {
+    ballsRef.current = balls;
+  }, [balls]);
+
+  // Optimized physics simulation using refs to avoid re-renders during animation
+  useEffect(() => {
+    let lastTime = 0;
+
     const animate = (timestamp: number) => {
-      if (!lastTimeRef.current) lastTimeRef.current = timestamp;
-      const deltaTime = Math.min((timestamp - lastTimeRef.current) / 16, 2);
-      lastTimeRef.current = timestamp;
+      if (!lastTime) lastTime = timestamp;
+      const deltaTime = Math.min((timestamp - lastTime) / 16, 2);
+      lastTime = timestamp;
 
-      setBalls((prevBalls) => {
-        const newBalls = prevBalls.map((ball) => {
-          if (ball.done) return ball;
+      const currentBalls = ballsRef.current;
+      if (currentBalls.length === 0) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
-          let { x, y, vx, vy, row } = ball;
+      let hasChanges = false;
+      const updatedBalls: Ball[] = [];
+      const newlyCompleted: Ball[] = [];
 
-          vy += GRAVITY * deltaTime;
-          x += vx * deltaTime;
-          y += vy * deltaTime;
-          vx *= FRICTION;
+      for (const ball of currentBalls) {
+        if (ball.done) {
+          updatedBalls.push(ball);
+          continue;
+        }
 
-          if (x < BALL_RADIUS + 5) {
-            x = BALL_RADIUS + 5;
-            vx = Math.abs(vx) * BOUNCE;
-          }
-          if (x > BOARD_WIDTH - BALL_RADIUS - 5) {
-            x = BOARD_WIDTH - BALL_RADIUS - 5;
-            vx = -Math.abs(vx) * BOUNCE;
-          }
+        hasChanges = true;
+        let { x, y, vx, vy, row } = ball;
 
-          for (const pin of pinPositions) {
+        // Apply physics
+        vy += GRAVITY * deltaTime;
+        x += vx * deltaTime;
+        y += vy * deltaTime;
+        vx *= FRICTION;
+
+        // Wall collisions
+        if (x < BALL_RADIUS + 5) {
+          x = BALL_RADIUS + 5;
+          vx = Math.abs(vx) * BOUNCE;
+        } else if (x > BOARD_WIDTH - BALL_RADIUS - 5) {
+          x = BOARD_WIDTH - BALL_RADIUS - 5;
+          vx = -Math.abs(vx) * BOUNCE;
+        }
+
+        // Pin collisions - only check nearby rows for performance
+        const currentRowEstimate = Math.floor((y - 15) / (60 / rows));
+        const minRow = Math.max(0, currentRowEstimate - 1);
+        const maxRow = Math.min(rows - 1, currentRowEstimate + 1);
+
+        for (let r = minRow; r <= maxRow; r++) {
+          const rowPins = pinsByRow[r];
+          if (!rowPins) continue;
+
+          for (const pin of rowPins) {
             const dx = x - pin.x;
             const dy = y - pin.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            const distSq = dx * dx + dy * dy;
             const minDist = PIN_RADIUS + BALL_RADIUS;
+            const minDistSq = minDist * minDist;
 
-            if (dist < minDist && dist > 0) {
+            if (distSq < minDistSq && distSq > 0) {
+              const dist = Math.sqrt(distSq);
               const overlap = minDist - dist;
               const nx = dx / dist;
               const ny = dy / dist;
@@ -140,75 +211,77 @@ export default function PlinkoPage() {
               const dotProduct = vx * nx + vy * ny;
               vx = (vx - 2 * dotProduct * nx) * BOUNCE;
               vy = (vy - 2 * dotProduct * ny) * BOUNCE;
-              // Add randomness with slight bias toward center (where house edge is)
+
+              // Add randomness with slight bias toward center
               const centerBias = (BOARD_WIDTH / 2 - x) * 0.02;
               vx += (Math.random() - 0.5) * 1.2 + centerBias;
 
               if (pin.row > row) row = pin.row;
             }
           }
+        }
 
-          if (y >= 82) {
-            // Calculate slot more accurately - use the center of the ball position
-            const slotWidth = 70 / numSlots;
-            const startX = (BOARD_WIDTH - 70) / 2;
-            // Use round instead of floor for better accuracy at boundaries
-            let slot = Math.round((x - startX - slotWidth / 2) / slotWidth);
-            slot = Math.max(0, Math.min(numSlots - 1, slot));
+        // Check if ball reached bottom
+        if (y >= 82) {
+          const slotWidth = 70 / numSlots;
+          const startX = (BOARD_WIDTH - 70) / 2;
+          let slot = Math.round((x - startX - slotWidth / 2) / slotWidth);
+          slot = Math.max(0, Math.min(numSlots - 1, slot));
 
-            return { ...ball, x, y: 82, vx: 0, vy: 0, row, finalSlot: slot, done: true };
+          const completedBall = { ...ball, x, y: 82, vx: 0, vy: 0, row, finalSlot: slot, done: true };
+          updatedBalls.push(completedBall);
+
+          if (!completedBallsRef.current.has(ball.id)) {
+            completedBallsRef.current.add(ball.id);
+            newlyCompleted.push(completedBall);
           }
+        } else {
+          updatedBalls.push({ ...ball, x, y, vx, vy, row });
+        }
+      }
 
-          return { ...ball, x, y, vx, vy, row };
-        });
+      if (hasChanges) {
+        setBalls(updatedBalls);
+      }
 
-        return newBalls;
-      });
+      // Process completed balls outside the animation loop
+      if (newlyCompleted.length > 0) {
+        for (const ball of newlyCompleted) {
+          if (ball.finalSlot !== null) {
+            const multiplier = multipliers[ball.finalSlot];
+            const winAmount = ball.betAmount * multiplier;
+            const won = multiplier >= 1;
+
+            play(won ? (multiplier >= 3 ? "bigWin" : "win") : "lose");
+            walletPlaceBet(ball.betAmount, won, winAmount);
+
+            setHistory((prev) => [
+              { multiplier, win: winAmount, bet: ball.betAmount },
+              ...prev,
+            ].slice(0, 10));
+
+            setActiveBets((prev) => Math.max(0, prev - 1));
+
+            // Remove ball after delay
+            setTimeout(() => {
+              setBalls((prev) => prev.filter((b) => b.id !== ball.id));
+              completedBallsRef.current.delete(ball.id);
+            }, 1500);
+          }
+        }
+      }
 
       animationRef.current = requestAnimationFrame(animate);
     };
 
     animationRef.current = requestAnimationFrame(animate);
+
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [pinPositions, numSlots]);
-
-  // Handle ball completion
-  useEffect(() => {
-    balls.forEach((ball) => {
-      if (ball.done && ball.finalSlot !== null) {
-        const multiplier = multipliers[ball.finalSlot];
-        const winAmount = ball.betAmount * multiplier;
-        const won = multiplier >= 1;
-
-        if (won) {
-          play(multiplier >= 3 ? "bigWin" : "win");
-        } else {
-          play("lose");
-        }
-
-        walletPlaceBet(ball.betAmount, won, winAmount);
-
-        setHistory((prev) => [
-          { multiplier, win: winAmount, bet: ball.betAmount },
-          ...prev,
-        ].slice(0, 10));
-
-        setActiveBets((prev) => Math.max(0, prev - 1));
-
-        setTimeout(() => {
-          setBalls((prev) => prev.filter((b) => b.id !== ball.id));
-        }, 1500);
-
-        setBalls((prev) =>
-          prev.map((b) =>
-            b.id === ball.id ? { ...b, finalSlot: null } : b
-          )
-        );
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
-    });
-  }, [balls, multipliers, walletPlaceBet, play]);
+    };
+  }, [pinsByRow, rows, numSlots, multipliers, walletPlaceBet, play]);
 
   const dropBall = useCallback(() => {
     if (betAmount <= 0 || betAmount > balance) return;
@@ -285,13 +358,9 @@ export default function PlinkoPage() {
         <div className="bg-[#1a1a2e] rounded-xl p-4">
           <div className="relative w-full aspect-[4/5] bg-gradient-to-b from-[#0f0f1a] to-[#1a1a2e] rounded-xl overflow-hidden">
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-              {pinPositions.map((pin, i) => (
-                <circle key={i} cx={pin.x} cy={pin.y} r={PIN_RADIUS} className="fill-white" style={{ filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.5))" }} />
-              ))}
+              <PinsLayer pins={pinPositions} />
               {balls.map((ball) => (
-                <g key={ball.id}>
-                  <circle cx={ball.x} cy={ball.y} r={BALL_RADIUS} className="fill-[#FFD700]" style={{ filter: "drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))" }} />
-                </g>
+                <BallComponent key={ball.id} x={ball.x} y={ball.y} />
               ))}
             </svg>
 
@@ -314,8 +383,8 @@ export default function PlinkoPage() {
             <div className="flex items-center bg-[#0f0f1a] rounded-lg overflow-hidden">
               <span className="px-3 text-[#666666]">$</span>
               <input type="number" min={1} value={betAmount} onChange={(e) => setBetAmount(Number(e.target.value) || 0)} className="flex-1 bg-transparent py-3 text-white outline-none" />
-              <button onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">½</button>
-              <button onClick={() => setBetAmount((a) => Math.min(balance, a * 2))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">2×</button>
+              <button onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">1/2</button>
+              <button onClick={() => setBetAmount((a) => Math.min(balance, a * 2))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">2x</button>
             </div>
           </div>
 
@@ -364,8 +433,8 @@ export default function PlinkoPage() {
                 <button className="px-2 py-3 text-[#22c55e] hover:bg-[#2a2a3e]">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" /></svg>
                 </button>
-                <button onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">½</button>
-                <button onClick={() => setBetAmount((a) => Math.min(balance, a * 2))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">2×</button>
+                <button onClick={() => setBetAmount((a) => Math.max(1, Math.floor(a / 2)))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">1/2</button>
+                <button onClick={() => setBetAmount((a) => Math.min(balance, a * 2))} className="px-3 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">2x</button>
                 <button className="px-2 py-3 text-[#666666] hover:text-white hover:bg-[#2a2a3e]">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
                 </button>
@@ -446,17 +515,11 @@ export default function PlinkoPage() {
                 <text x="50" y="5" textAnchor="middle" fill="#FFD700" fontSize="3" fontWeight="bold">DROP</text>
 
                 {/* Pins */}
-                {pinPositions.map((pin, i) => (
-                  <circle key={i} cx={pin.x} cy={pin.y} r={PIN_RADIUS} className="fill-white" style={{ filter: "drop-shadow(0 0 3px rgba(255, 255, 255, 0.6))" }} />
-                ))}
+                <PinsLayer pins={pinPositions} />
 
                 {/* Balls */}
                 {balls.map((ball) => (
-                  <g key={ball.id}>
-                    <ellipse cx={ball.x} cy={ball.y + BALL_RADIUS} rx={BALL_RADIUS * 0.8} ry={BALL_RADIUS * 0.3} fill="rgba(0,0,0,0.3)" />
-                    <circle cx={ball.x} cy={ball.y} r={BALL_RADIUS} className="fill-[#FFD700]" style={{ filter: "drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))" }} />
-                    <circle cx={ball.x - BALL_RADIUS * 0.3} cy={ball.y - BALL_RADIUS * 0.3} r={BALL_RADIUS * 0.3} fill="rgba(255,255,255,0.4)" />
-                  </g>
+                  <BallComponent key={ball.id} x={ball.x} y={ball.y} />
                 ))}
               </svg>
 
